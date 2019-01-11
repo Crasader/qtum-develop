@@ -3429,6 +3429,64 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CWalletT
     return true;
 }
 
+bool CWallet::CreateTicketPurchaseTx(CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& ticketPrice, CAmount& nFeeRet, std::string& strFailReason,
+    						const CCoinControl& coin_control, bool sign = true, bool hasSender=false)
+{
+	CAmount nValue = 0;
+	COutPoint senderInput;
+    if(hasSender && coin_control.HasSelected()){
+    	std::vector<COutPoint> vSenderInputs;
+    	coin_control.ListSelected(vSenderInputs);
+    	senderInput=vSenderInputs[0];
+    }
+
+    wtxNew.fTimeReceivedIsTxTime = true;
+    wtxNew.BindWallet(this);
+    CMutableTransaction txNew;
+
+    if (GetRandInt(10) == 0)
+        txNew.nLockTime = std::max(0, (int)txNew.nLockTime - GetRandInt(100));
+
+    assert(txNew.nLockTime <= (unsigned int)chainActive.Height());
+    assert(txNew.nLockTime < LOCKTIME_THRESHOLD);
+    FeeCalculation feeCalc;
+    CAmount nFeeNeeded;
+    unsigned int nBytes;
+    {
+        std::set<CInputCoin> setCoins;
+        std::vector<CInputCoin> vCoins;
+        LOCK2(cs_main, cs_wallet);
+        {
+        	std::vector<COutput> vAvailableCoins;
+			AvailableCoins(vAvailableCoins, true, &coin_control);
+
+            CFeeRate discard_rate = GetDiscardRate(::feeEstimator);
+            nFeeRet = 0;
+            bool pick_new_inputs = true;
+            CAmount nValueIn = 0;
+
+            // Start with no fee and loop until there is enough fee
+            while (true)
+            {
+                txNew.vin.clear();
+                txNew.vout.clear();
+                wtxNew.fFromMe = true;
+                bool fFirst = true;
+
+                CAmount nValueToSelect = nValue;
+                nValueToSelect += nFeeRet;		// default subtract fee from amount
+                CScript paysstx = PayToSStx(p2shOpTrueAddr);
+                CTxOut txout(ticketPrice, paysstx);
+
+                txNew.vout.push_back(txout);
+            }
+        }
+    }
+
+
+	return true;
+}
+
 uint64_t CWallet::GetStakeWeight() const
 {
     // Choose coins to use

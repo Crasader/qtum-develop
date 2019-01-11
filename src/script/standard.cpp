@@ -14,6 +14,8 @@
 #include <qtum/qtumtransaction.h>
 #include <validation.h>
 
+#include <cmath>
+
 typedef std::vector<unsigned char> valtype;
 
 bool fAcceptDatacarrier = DEFAULT_ACCEPT_DATACARRIER;
@@ -471,6 +473,53 @@ CScript GetScriptForWitness(const CScript& redeemscript)
     uint256 hash;
     CSHA256().Write(&redeemscript[0], redeemscript.size()).Finalize(hash.begin());
     return GetScriptForDestination(WitnessV0ScriptHash(hash));
+}
+
+CScript PayToSStx(uint160& stakeaddress){
+	return CScript() << OP_SSTX << OP_DUP << OP_HASH160 << ToByteVector(stakeaddress) << OP_EQUALVERIFY << OP_CHECKSIG;
+}
+
+CScript PayToSStxChange(uint160& stakeaddress){
+	return CScript() << OP_SSTXCHANGE << OP_DUP << OP_HASH160 << ToByteVector(stakeaddress) << OP_EQUALVERIFY << OP_CHECKSIG;
+}
+
+CScript PayToSSGen(uint160& stakeaddress){
+	return CScript() << OP_SSGEN << OP_DUP << OP_HASH160 << ToByteVector(stakeaddress) << OP_EQUALVERIFY << OP_CHECKSIG;
+}
+
+CScript PayToSSRtx(uint160& stakeaddress){
+	return CScript() << OP_SSRTX << OP_DUP << OP_HASH160 << ToByteVector(stakeaddress) << OP_EQUALVERIFY << OP_CHECKSIG;
+}
+
+CScript PurchaseCommitmentScript(uint160& address, CAmount&  amount, CAmount& voteFeeLimit, CAmount& revocationFeeLimit){
+	// The limits are defined in terms of the closest base 2 exponent and
+	// a bit that must be set to specify the limit is to be applied.  The
+	// vote fee exponent is in the bottom 8 bits, while the revocation fee
+	// exponent is in the upper 8 bits.
+	uint16_t limits = 0;
+	if(voteFeeLimit != 0){
+		uint16_t exp = (uint16_t)std::ceil(std::log2((double)voteFeeLimit));
+		limits |= (exp | 0x40);
+	}
+	if(revocationFeeLimit != 0){
+		uint16_t exp = (uint16_t)std::ceil(std::log2((double)revocationFeeLimit));
+		limits |= ((exp | 0x40) << 8);
+	}
+	// The data consists of the 20-byte raw script address for the given
+	// address, 8 bytes for the amount to commit to (with the upper bit flag
+	// set to indicate a pay-to-script-hash address), and 2 bytes for the
+	// fee limits.
+	std::vector<unsigned char> vchrs;
+	vchrs.resize(30);
+	vchrs.assign(address.begin(), address.end());
+	WriteLE64(vchrs.data() + 20, (uint64_t)amount);
+	vchrs[27] |= 1 << 7;
+
+	WriteLE16(vchrs.data() + 28, (uint64_t)limits);
+	CScript script;
+	script << OP_RETURN << vchrs;
+
+	return script;
 }
 
 bool IsValidDestination(const CTxDestination& dest) {

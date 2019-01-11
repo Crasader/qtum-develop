@@ -310,6 +310,8 @@ std::unique_ptr<ticketStateDB> prevokedticketview;
 std::unique_ptr<CBlockTreeDB> pblocktree;
 std::unique_ptr<StorageResults> pstorageresult;
 
+uint160 p2shOpTrueAddr; // todo temple do this
+
 enum FlushStateMode {
     FLUSH_STATE_NONE,
     FLUSH_STATE_IF_NEEDED,

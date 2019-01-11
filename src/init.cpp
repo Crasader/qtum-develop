@@ -1542,6 +1542,12 @@ bool AppInitMain()
                 pmissedticketview.reset(new ticketStateDB("missedticket", nticketCache, false, fReset || fReindexChainState));
                 prevokedticketview.reset(new ticketStateDB("revokedticket", nticketCache, false, fReset || fReindexChainState));
 
+                //////////////////////////////////////////////////////////////// decred
+                std::vector<unsigned char> vOpTrue = {(unsigned char)OP_TRUE};
+                p2shOpTrueAddr = Hash160(vOpTrue);
+
+                ////////////////////////////////////////////////////////////////
+
                 // If necessary, upgrade from older database format.
                 // This is a no-op if we cleared the coinsviewdb with -reindex or -reindex-chainstate
                 if (!pcoinsdbview->Upgrade()) {

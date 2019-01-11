@@ -1024,7 +1024,43 @@ public:
      * @note passing nChangePosInOut as -1 will result in setting a random position
      */
     bool CreateTransaction(const std::vector<CRecipient>& vecSend, CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRet, int& nChangePosInOut,
-                           std::string& strFailReason, const CCoinControl& coin_control, bool sign = true, CAmount nGasFee=0, bool hasSender=false);
+                            std::string& strFailReason, const CCoinControl& coin_control, bool sign = true, CAmount nGasFee=0, bool hasSender=false);
+
+    // CreateTicketPurchaseTx creates a new transaction that spends the provided
+    // output to purchase a stake submission ticket (sstx) at the given ticket
+    // price.  Both the ticket and the change will go to a p2sh script that is
+    // composed with a single OP_TRUE.
+    //
+    // The transaction consists of the following outputs:
+    // - First output is an OP_SSTX followed by the OP_TRUE p2sh script hash
+    // - Second output is an OP_RETURN followed by the commitment script
+    // - Third output is an OP_SSTXCHANGE followed by the OP_TRUE p2sh script hash
+    bool CreateTicketPurchaseTx(CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& ticketPrice, CAmount& fee, std::string& strFailReason,
+    						const CCoinControl& coin_control, bool sign = true, bool hasSender=false);
+
+    // CreateVoteTx returns a new transaction (ssgen) paying an appropriate subsidy
+    // for the given block height (and the number of votes per block) as well as the
+    // original commitments.
+    //
+    // The transaction consists of the following outputs:
+    // - First output is an OP_RETURN followed by the block hash and height
+    // - Second output is an OP_RETURN followed by the vote bits
+    // - Third and subsequent outputs are the payouts according to the ticket
+    //   commitments and the appropriate proportion of the vote subsidy.
+    bool CreateVoteTx(CWalletTx& wtxNew, CReserveKey& reservekey, CBlock& voteBlock, CTransaction& voteTx, std::string& strFailReason,
+    						uint32_t ticketBlockHeight, uint32_t ticketBlockIndex);
+
+    // CreateRevocationTx returns a new transaction (ssrtx) refunding the ticket
+    // price for a ticket which either missed its vote or expired.
+    //
+    // The transaction consists of the following inputs:
+    // - The outpoint of the ticket that was missed or expired.
+    //
+    // The transaction consists of the following outputs:
+    // - The payouts according to the ticket commitments.
+    bool CreateRevocationTx(CWalletTx& wtxNew, CReserveKey& reservekey, CTransaction& voteTx, std::string& strFailReason,
+			uint32_t ticketBlockHeight, uint32_t ticketBlockIndex);
+
     bool CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey, CConnman* connman, CValidationState& state);
 
     void ListAccountCreditDebit(const std::string& strAccount, std::list<CAccountingEntry>& entries);

@@ -586,6 +586,8 @@ extern std::unique_ptr<ticketStateDB> prevokedticketview;
 extern std::unique_ptr<CBlockTreeDB> pblocktree;
 
 extern std::unique_ptr<StorageResults> pstorageresult;
+
+extern uint160 p2shOpTrueAddr; // todo temple do this
 /**
  * Return the spend height, which is one more than the inputs.GetBestBlock().
  * While checking, GetBestBlock() refers to the parent block. (protected by cs_main)
