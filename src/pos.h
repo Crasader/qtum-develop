@@ -49,4 +49,34 @@ bool CheckCoinStakeTimestamp(uint32_t nTimeBlock);
 bool CheckKernel(CBlockIndex* pindexPrev, unsigned int nBits, uint32_t nTimeBlock, const COutPoint& prevout, CCoinsViewCache& view);
 bool CheckKernel(CBlockIndex* pindexPrev, unsigned int nBits, uint32_t nTimeBlock, const COutPoint& prevout, CCoinsViewCache& view, const std::map<COutPoint, CStakeCache>& cache);
 
+// estimateNextStakeDifficulty estimates the next stake difficulty using the
+// algorithm defined in DCP0001 by pretending the provided number of tickets
+// will be purchased in the remainder of the interval unless the flag to use max
+// tickets is set in which case it will use the max possible number of tickets
+// that can be purchased in the remainder of the interval.
+//
+// This function MUST be called with the chain state lock held (for writes).
+bool estimateNextStakeDifficulty(const Consensus::Params& consensusParams, const CBlockIndex* curNode, int64_t newTickets, bool useMaxTickets, int64_t& sBits);
+
+// calcNextRequiredStakeDifficultyV2 calculates the required stake difficulty
+// for the block after the passed previous block node based on the algorithm
+// defined in DCP0001.
+//
+// This function MUST be called with the chain state lock held (for writes).
+bool estimateNextStakeDifficulty(const Consensus::Params& consensusParams, const CBlockIndex* curNode, int64_t& sBits);
+
+// calcNextStakeDiff calculates the next stake difficulty for the given set
+// of parameters using the algorithm defined in DCP0001.
+//
+// This function contains the heart of the algorithm and thus is separated for
+// use in both the actual stake difficulty calculation as well as estimation.
+//
+// The caller must perform all of the necessary chain traversal in order to
+// get the current difficulty, previous retarget interval's pool size plus
+// its immature tickets, as well as the current pool size plus immature tickets.
+//
+// This function is safe for concurrent access.
+int64_t calcNextStakeDiff(const Consensus::Params& consensusParams, int32_t nHeight, int64_t curDiff, int64_t prevPoolSizeAll, int64_t curPoolSizeAll);
+
+
 #endif // QUANTUM_POS_H

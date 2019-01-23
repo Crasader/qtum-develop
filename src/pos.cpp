@@ -14,6 +14,7 @@
 #include <chainparams.h>
 #include <script/sign.h>
 #include <consensus/consensus.h>
+#include <openssl/bn.h>
 
 using namespace std;
 
@@ -203,26 +204,287 @@ void CacheKernel(std::map<COutPoint, CStakeCache>& cache, const COutPoint& prevo
     cache.insert({prevout, c});
 }
 
+bool estimateNextStakeDifficulty(const Consensus::Params& consensusParams, const CBlockIndex* curNode, int64_t newTickets, bool useMaxTickets, int64_t& sBits){
+	// Calculate the next retarget interval height.
+	int64_t curHeight = 0;
+	if(curNode != nullptr){
+		curHeight = (int64_t)curNode->nHeight;
+	}
+	int64_t ticketMaturity = (int64_t)consensusParams.TicketMaturity;
+	int64_t intervalSize = (int64_t)consensusParams.StakeDiffWindowSize;
+	int64_t blocksUntilRetarget = intervalSize - curHeight % intervalSize;
+	int64_t nextRetargetHeight = curHeight + blocksUntilRetarget;
 
+	// Calculate the maximum possible number of tickets that could be sold
+	// in the remainder of the interval and potentially override the number
+	// of new tickets to include in the estimate per the user-specified
+	// flag.
+	int64_t maxTicketsPerBlock = (int64_t)consensusParams.MaxFreshStakePerBlock;
+	int64_t maxRemainingTickets = (blocksUntilRetarget - 1) * maxTicketsPerBlock;
+	if(useMaxTickets){
+		newTickets = maxRemainingTickets;
+	}
 
+	// Ensure the specified number of tickets is not too high.
+	if(newTickets > maxRemainingTickets){
+		sBits = 0;
+		error("%s: unable to create an estimated stake difficulty with %d tickets since it is more than "
+				"the maximum remaining of %d", __func__, newTickets);
+	}
 
+	// Stake difficulty before any tickets could possibly be purchased is
+	// the minimum value.
+	int64_t stakeDiffStartHeight = (int64_t)consensusParams.CoinbaseMaturity + 1;
+	if(nextRetargetHeight < stakeDiffStartHeight){
+		sBits = consensusParams.MinimumStakeDiff;
+		return true;
+	}
 
+	// Get the pool size and number of tickets that were immature at the
+	// previous retarget interval
+	//
+	// NOTE: Since the stake difficulty must be calculated based on existing
+	// blocks, it is always calculated for the block after a given block, so
+	// the information for the previous retarget interval must be retrieved
+	// relative to the block just before it to coincide with how it was
+	// originally calculated.
+	int64_t prevPoolSize = 0;
+	int64_t prevImmatureTickets = 0;
+	int64_t prevRetargetHeight = nextRetargetHeight - intervalSize - 1;
+	const CBlockIndex* prevRetargetNode = curNode->GetAncestor(prevRetargetHeight);
+	if(prevRetargetNode != nullptr){
+		prevPoolSize = (int64_t)prevRetargetNode->poolSize;
+		prevImmatureTickets = prevRetargetNode->sumPurchasedTickets(ticketMaturity);
+	}
 
+	// Return the existing ticket price for the first few intervals to avoid
+	// division by zero and encourage initial pool population.
+	int64_t curDiff = curNode->sBits;
+	int64_t prevPoolSizeAll = prevPoolSize + prevImmatureTickets;
+	if(prevPoolSizeAll == 0){
+		sBits = curDiff;
+		return true;
+	}
 
+	// Calculate the number of tickets that will still be immature at the
+	// next retarget based on the known (non-estimated) data.
+	//
+	// Note that when the interval size is larger than the ticket maturity,
+	// the current height might be before the maturity floor (the point
+	// after which the remaining tickets will remain immature).  There are
+	// therefore no possible remaining immature tickets from the blocks that
+	// are not being estimated in that case.
+	int64_t remainingImmatureTickets = 0;
+	int64_t nextMaturityFloor = nextRetargetHeight - ticketMaturity - 1;
+	if(curHeight > nextMaturityFloor){
+		remainingImmatureTickets = curNode->sumPurchasedTickets(curHeight - nextMaturityFloor);
+	}
 
+	// Add the number of tickets that will still be immature at the next
+	// retarget based on the estimated data.
+	int64_t maxImmatureTickets = ticketMaturity * maxTicketsPerBlock;
+	if(newTickets > maxImmatureTickets){
+		remainingImmatureTickets += maxImmatureTickets;
+	}
+	else {
+		remainingImmatureTickets += newTickets;
+	}
 
+	// Calculate the number of tickets that will mature in the remainder of
+	// the interval based on the known (non-estimated) data.
+	//
+	// NOTE: The pool size in the block headers does not include the tickets
+	// maturing at the height in which they mature since they are not
+	// eligible for selection until the next block, so exclude them by
+	// starting one block before the next maturity floor.
+	int64_t finalMaturingHeight = nextMaturityFloor - 1;
+	if(finalMaturingHeight > curHeight){
+		finalMaturingHeight = curHeight;
+	}
+	const CBlockIndex* finalMaturingNode = curNode->GetAncestor(finalMaturingHeight);
+	int64_t firstMaturingHeight = curHeight - ticketMaturity;
+	if(firstMaturingHeight > curHeight){
+		finalMaturingHeight = curHeight;
+	}
+	int64_t maturingTickets = 0;
+	if(finalMaturingNode != nullptr){
+		finalMaturingNode->sumPurchasedTickets(finalMaturingHeight - firstMaturingHeight + 1);
+	}
 
+	// Add the number of tickets that will mature based on the estimated data.
+	//
+	// Note that when the ticket maturity is greater than or equal to the
+	// interval size, the current height will always be after the maturity
+	// floor.  There are therefore no possible maturing estimated tickets
+	// in that case.
+	if(curHeight < nextMaturityFloor){
+		int64_t maturingEstimateNodes = nextMaturityFloor - curHeight - 1;
+		int64_t maturingEstimatedTickets = maxTicketsPerBlock * maturingEstimateNodes;
+		if(maturingEstimatedTickets > newTickets){
+			maturingEstimatedTickets = newTickets;
+		}
+		maturingTickets += maturingEstimatedTickets;
+	}
 
+	// Calculate the number of votes that will occur during the remainder of
+	// the interval.
+	int64_t stakeValidationHeight = consensusParams.StakeValidationHeight;
+	int64_t pendingVotes = 0;
+	if(nextRetargetHeight > stakeValidationHeight){
+		int64_t votingBlocks = blocksUntilRetarget - 1;
+		if(curHeight < stakeValidationHeight){
+			votingBlocks = nextRetargetHeight - stakeValidationHeight;
+		}
+		int64_t votesPerBlock = consensusParams.TicketsPerBlock;
+		pendingVotes = votingBlocks * votesPerBlock;
+	}
 
+	// Calculate what the pool size would be as of the next interval.
+	int64_t curPoolSize = curNode->poolSize;
+	int64_t estimatedPoolSize = curPoolSize + maturingTickets - pendingVotes;
+	int64_t estimatedPoolSizeAll = estimatedPoolSize + remainingImmatureTickets;
 
+	// Calculate and return the final estimated difficulty.
+	sBits = calcNextStakeDiff(consensusParams, nextRetargetHeight, curDiff, prevPoolSizeAll, estimatedPoolSizeAll);
+	return true;
+}
 
+bool estimateNextStakeDifficulty(const Consensus::Params& consensusParams, const CBlockIndex* curNode, int64_t& sBits){
+	// Stake difficulty before any tickets could possibly be purchased is
+	// the minimum value.
+	int64_t nextHeight = 0;
+	if(curNode != nullptr){
+		nextHeight = (int64_t)curNode->nHeight + 1;
+	}
 
+	int64_t stakeDiffStartHeight = (int64_t)consensusParams.CoinbaseMaturity + 1;
+	if(nextHeight < stakeDiffStartHeight){
+		sBits = consensusParams.MinimumStakeDiff;
+		return true;
+	}
 
+	// Return the previous block's difficulty requirements if the next block
+	// is not at a difficulty retarget interval.
+	int64_t intervalSize = (int64_t)consensusParams.StakeDiffWindowSize;
+	int64_t ticketMaturity = (int64_t)consensusParams.TicketMaturity;
+	int64_t curDiff = curNode->sBits;
+	if(nextHeight % intervalSize != 0){
+		sBits = curDiff;
+		return true;
+	}
 
+	// Get the pool size and number of tickets that were immature at the
+	// previous retarget interval
+	//
+	// NOTE: Since the stake difficulty must be calculated based on existing
+	// blocks, it is always calculated for the block after a given block, so
+	// the information for the previous retarget interval must be retrieved
+	// relative to the block just before it to coincide with how it was
+	// originally calculated.
+	int64_t prevPoolSize = 0;
+	int64_t prevImmatureTickets = 0;
+	int64_t prevRetargetHeight = nextHeight - intervalSize - 1;
+	const CBlockIndex* prevRetargetNode = curNode->GetAncestor(prevRetargetHeight);
+	if(prevRetargetNode != nullptr){
+		prevPoolSize = (int64_t)prevRetargetNode->poolSize;
+		prevImmatureTickets = prevRetargetNode->sumPurchasedTickets(ticketMaturity);
+	}
 
+	// Return the existing ticket price for the first few intervals to avoid
+	// division by zero and encourage initial pool population.
+	int64_t prevPoolSizeAll = prevPoolSize + prevImmatureTickets;
+	if(prevPoolSizeAll == 0){
+		sBits = curDiff;
+		return true;
+	}
 
+	// Count the number of currently immature tickets.
+	int64_t immatureTickets = curNode->sumPurchasedTickets(ticketMaturity);
 
+	// Calculate and return the final next required difficulty.
+	int64_t curPoolSizeAll = (int64_t)curNode->poolSize + immatureTickets;
+	sBits = calcNextStakeDiff(consensusParams, nextHeight, curDiff, prevPoolSizeAll, curPoolSizeAll);
+	return true;
 
+}
 
+int64_t calcNextStakeDiff(const Consensus::Params& consensusParams, int32_t nHeight, int64_t curDiff, int64_t prevPoolSizeAll, int64_t curPoolSizeAll){
 
+	// Shorter version of various parameter for convenience.
+	int64_t votesPerBlock = (int64_t)consensusParams.TicketsPerBlock;
+	int64_t ticketPoolSize = (int64_t)consensusParams.TicketPoolSize;
+	int64_t ticketMaturity = (int64_t)consensusParams.TicketMaturity;
+
+	// Calculate the difficulty by multiplying the old stake difficulty
+	// with two ratios that represent a force to counteract the relative
+	// change in the pool size (Fc) and a restorative force to push the pool
+	// size  towards the target value (Fr).
+	//
+	// Per DCP0001, the generalized equation is:
+	//
+	//   nextDiff = min(max(curDiff * Fc * Fr, Slb), Sub)
+	//
+	// The detailed form expands to:
+	//
+	//                        curPoolSizeAll      curPoolSizeAll
+	//   nextDiff = curDiff * ---------------  * -----------------
+	//                        prevPoolSizeAll    targetPoolSizeAll
+	//
+	//   Slb = b.chainParams.MinimumStakeDiff
+	//
+	//               estimatedTotalSupply
+	//   Sub = -------------------------------
+	//          targetPoolSize / votesPerBlock
+	//
+	// In order to avoid the need to perform floating point math which could
+	// be problematic across languages due to uncertainty in floating point
+	// math libs, this is further simplified to integer math as follows:
+	//
+	//                   curDiff * curPoolSizeAll^2
+	//   nextDiff = -----------------------------------
+	//              prevPoolSizeAll * targetPoolSizeAll
+	//
+	// Further, the Sub parameter must calculate the denomitor first using
+	// integer math.
+	int64_t targetPoolSizeAll = votesPerBlock * (ticketPoolSize + ticketMaturity);
+	const std::string& cpsaStr = i64tostr(curPoolSizeAll);
+	BIGNUM *curPoolSizeAllBig = 0;
+	BN_dec2bn((BIGNUM **)&curPoolSizeAllBig, cpsaStr.c_str());
+
+	const std::string& cdStr = i64tostr(curDiff);
+	BIGNUM *nextDiffBig = 0;
+	BN_dec2bn((BIGNUM **)&nextDiffBig, cdStr.c_str());
+
+	const std::string& ppsaStr = i64tostr(prevPoolSizeAll);
+	BIGNUM *prevPoolSizeAllBig = 0;
+	BN_dec2bn((BIGNUM **)&prevPoolSizeAllBig, ppsaStr.c_str());
+
+	const std::string& tpsaStr = i64tostr(targetPoolSizeAll);
+	BIGNUM *targetPoolSizeAllBig = 0;
+	BN_dec2bn((BIGNUM **)&targetPoolSizeAllBig, tpsaStr.c_str());
+
+	BN_mul(nextDiffBig, nextDiffBig, curPoolSizeAllBig, BN_CTX_new());
+	BN_mul(nextDiffBig, nextDiffBig, curPoolSizeAllBig, BN_CTX_new());
+	BN_div(nextDiffBig, NULL, nextDiffBig, prevPoolSizeAllBig, BN_CTX_new());
+	BN_div(nextDiffBig, NULL, nextDiffBig, targetPoolSizeAllBig, BN_CTX_new());
+
+	// make int64
+	const std::string& ndbStr(BN_bn2dec(nextDiffBig));
+	int64_t nextDiff = atoi64(ndbStr);
+
+	// Limit the new stake difficulty between the minimum allowed stake
+	// difficulty and a maximum value that is relative to the total supply.
+	//
+	// NOTE: This is intentionally using integer math to prevent any
+	// potential issues due to uncertainty in floating point math libs.  The
+	// ticketPoolSize parameter already contains the result of
+	// (targetPoolSize / votesPerBlock).
+	if(nextDiff > consensusParams.MaxStakeDiff){
+		nextDiff = consensusParams.MaxStakeDiff;
+	}
+	if(nextDiff < consensusParams.MinimumStakeDiff){
+		nextDiff = consensusParams.MinimumStakeDiff;
+	}
+	return nextDiff;
+}
 

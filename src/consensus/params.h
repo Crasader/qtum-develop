@@ -10,6 +10,7 @@
 #include <limits>
 #include <map>
 #include <string>
+#include <script/script.h>
 
 namespace Consensus {
 
@@ -21,6 +22,9 @@ enum DeploymentPos
     // NOTE: Also add new deployments to VersionBitsDeploymentInfo in versionbits.cpp
     MAX_VERSION_BITS_DEPLOYMENTS
 };
+
+// TokenPayout is a payout for block 1 which specifies an address and an amount
+// to pay to that address in a transaction output.
 
 /**
  * Struct for each individual consensus rule change using BIP9.
@@ -83,8 +87,38 @@ struct Params {
     int nFixUTXOCacheHFHeight;
 
     ///////////////////////////////////////////////////////////////// decred
+
+	// MinimumStakeDiff if the minimum amount of Atoms required to purchase a
+	// stake ticket.
+    int64_t MinimumStakeDiff;
+
+	// MaxStakeDiff if the max amount of Atoms required to purchase a
+	// stake ticket. Added by ypf, not in dcrd.
+    // MaxStakeDiff = the sum of pre-mine div  TicketPoolSize.
+    int64_t MaxStakeDiff;
+
+	// Ticket pool sizes for Decred PoS. This denotes the number of possible
+	// buckets/number of different ticket numbers. It is also the number of
+	// possible winner numbers there are.
+    uint16_t TicketPoolSize;
+
     // Average number of tickets per block for Decred PoS.
     uint16_t TicketsPerBlock;
+
+    // Number of blocks for tickets to mature (spendable at TicketMaturity+1).
+    uint16_t TicketMaturity;
+
+	// CoinbaseMaturity is the number of blocks required before newly mined
+	// coins (coinbase transactions) can be spent.
+    uint16_t CoinbaseMaturity;
+
+	// StakeDiffWindowSize is the number of blocks used for each interval in
+	// exponentially weighted average.
+    int64_t StakeDiffWindowSize;
+
+	// MaxFreshStakePerBlock is the maximum number of new tickets that may be
+	// submitted per block.
+    uint8_t MaxFreshStakePerBlock;
 
 	// StakeValidationHeight is the height at which votes (SSGen) are required
 	// to add a new block to the top of the blockchain. This height is the
@@ -95,9 +129,50 @@ struct Params {
 	// mature.
     uint64_t StakeEnabledHeight;
 
+	// StakeBaseSigScript is the consensus stakebase signature script for all
+	// votes on the network. This isn't signed in any way, so without forcing
+	// it to be this value miners/daemons could freely change it.
+    CScript StakeBaseSigScript;
+
 	// Number of blocks for tickets to expire after they have matured. This MUST
 	// be >= (StakeEnabledHeight + StakeValidationHeight).
     uint32_t TicketExpiry;
+
+    // BaseSubsidy is the starting subsidy amount for mined blocks.
+    int64_t BaseSubsidy;
+
+    // Subsidy reduction multiplier.
+    int64_t MulSubsidy;
+
+    // Subsidy reduction divisor.
+    int64_t DivSubsidy;
+
+    // SubsidyReductionInterval is the reduction interval in blocks.
+    uint16_t SubsidyReductionInterval;
+
+	// WorkRewardProportion is the comparative amount of the subsidy given for
+	// creating a block.
+    uint16_t WorkRewardProportion;
+
+	// StakeRewardProportion is the comparative amount of the subsidy given for
+	// casting stake votes (collectively, per block).
+    uint16_t StakeRewardProportion;
+
+	// BlockTaxProportion is the inverse of the percentage of funds for each
+	// block to allocate to the developer organization.
+	// e.g. 10% --> 10 (or 1 / (1/10))
+	// Special case: disable taxes with a value of 0
+    uint16_t BlockTaxProportion;
+
+    uint16_t TotalSubsidyProportions() const {
+    	return WorkRewardProportion + StakeRewardProportion + BlockTaxProportion;
+    }
+
+	// BlockOneLedger specifies the list of payouts in the coinbase of
+	// block height 1. If there are no payouts to be given, set this
+	// to an empty slice.
+
+    ////////////////////////////////////////////////////////////////
 };
 } // namespace Consensus
 

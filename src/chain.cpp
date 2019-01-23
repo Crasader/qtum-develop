@@ -118,6 +118,24 @@ void CBlockIndex::BuildSkip()
         pskip = pprev->GetAncestor(GetSkipHeight(nHeight));
 }
 
+int64_t CBlockIndex::sumPurchasedTickets(int64_t numToSum)
+{
+    return (static_cast<const CBlockIndex*>(this)->sumPurchasedTickets(numToSum));
+}
+
+int64_t CBlockIndex::sumPurchasedTickets(int64_t numToSum) const
+{
+	int64_t numPurchased = (int64_t)freshStake;
+	if(pprev != nullptr){
+		CBlockIndex* pnode = pprev;
+		for(int64_t numTraversed = 1; pnode != nullptr && numTraversed < numToSum; numTraversed++){
+			numPurchased += (int64_t)pnode->freshStake;
+			pnode = pnode->pprev;
+		}
+	}
+	return numPurchased;
+}
+
 arith_uint256 GetBlockProof(const CBlockIndex& block)
 {
     arith_uint256 bnTarget;

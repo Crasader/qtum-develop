@@ -774,6 +774,10 @@ private:
      */
     const CBlockIndex* m_last_block_processed;
 
+	// voteBitYes is the specific bit that is set in the vote bits to
+	// indicate that the previous block is valid.
+    static const uint16_t voteBitYes = 0x01;
+
 public:
     /*
      * Main wallet lock.
@@ -1035,8 +1039,8 @@ public:
     // - First output is an OP_SSTX followed by the OP_TRUE p2sh script hash
     // - Second output is an OP_RETURN followed by the commitment script
     // - Third output is an OP_SSTXCHANGE followed by the OP_TRUE p2sh script hash
-    bool CreateTicketPurchaseTx(CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& ticketPrice, CAmount& fee, std::string& strFailReason,
-    						const CCoinControl& coin_control, bool sign = true, bool hasSender=false);
+    bool CreateTicketPurchaseTx(CWalletTx& wtxNew, CAmount& ticketPrice, CAmount& nFeeRet, std::string& strFailReason,
+        						const CCoinControl& coin_control, bool hasSender=false);
 
     // CreateVoteTx returns a new transaction (ssgen) paying an appropriate subsidy
     // for the given block height (and the number of votes per block) as well as the
@@ -1047,7 +1051,7 @@ public:
     // - Second output is an OP_RETURN followed by the vote bits
     // - Third and subsequent outputs are the payouts according to the ticket
     //   commitments and the appropriate proportion of the vote subsidy.
-    bool CreateVoteTx(CWalletTx& wtxNew, CReserveKey& reservekey, CBlock& voteBlock, CTransaction& voteTx, std::string& strFailReason,
+    bool CreateVoteTx(CWalletTx& wtxNew, CReserveKey& reservekey, CBlockIndex* voteBlock, CTransaction& ticketTx, std::string& strFailReason,
     						uint32_t ticketBlockHeight, uint32_t ticketBlockIndex);
 
     // CreateRevocationTx returns a new transaction (ssrtx) refunding the ticket

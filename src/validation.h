@@ -323,6 +323,8 @@ bool GetTransaction(const uint256& hash, CTransactionRef& tx, const Consensus::P
 /** Find the best known block, and make it the tip of the block chain */
 bool ActivateBestChain(CValidationState& state, const CChainParams& chainparams, std::shared_ptr<const CBlock> pblock = std::shared_ptr<const CBlock>());
 CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams);
+CAmount calcPoSSubsidy(int nHeight, const Consensus::Params& consensusParams);
+CAmount calcFullSubsidy(int nHeight, const Consensus::Params& consensusParams);
 
 /** Guess verification progress (as a fraction between 0.0=genesis and 1.0=current tip). */
 double GuessVerificationProgress(const ChainTxData& data, const CBlockIndex* pindex);
@@ -588,6 +590,7 @@ extern std::unique_ptr<CBlockTreeDB> pblocktree;
 extern std::unique_ptr<StorageResults> pstorageresult;
 
 extern uint160 p2shOpTrueAddr; // todo temple do this
+extern CScript opTrueRedeemScript;	// todo temple do this
 /**
  * Return the spend height, which is one more than the inputs.GetBestBlock().
  * While checking, GetBestBlock() refers to the parent block. (protected by cs_main)

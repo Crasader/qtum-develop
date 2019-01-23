@@ -3429,10 +3429,10 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CWalletT
     return true;
 }
 
-bool CWallet::CreateTicketPurchaseTx(CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& ticketPrice, CAmount& nFeeRet, std::string& strFailReason,
-    						const CCoinControl& coin_control, bool sign = true, bool hasSender=false)
+bool CWallet::CreateTicketPurchaseTx(CWalletTx& wtxNew, CAmount& ticketPrice, CAmount& nFeeRet, std::string& strFailReason,
+    						const CCoinControl& coin_control, bool hasSender)
 {
-	CAmount nValue = 0;
+	CAmount nValue = ticketPrice;
 	COutPoint senderInput;
     if(hasSender && coin_control.HasSelected()){
     	std::vector<COutPoint> vSenderInputs;
@@ -3460,29 +3460,195 @@ bool CWallet::CreateTicketPurchaseTx(CWalletTx& wtxNew, CReserveKey& reservekey,
         	std::vector<COutput> vAvailableCoins;
 			AvailableCoins(vAvailableCoins, true, &coin_control);
 
-            CFeeRate discard_rate = GetDiscardRate(::feeEstimator);
+//            CFeeRate discard_rate = GetDiscardRate(::feeEstimator);
             nFeeRet = 0;
             bool pick_new_inputs = true;
             CAmount nValueIn = 0;
 
-            // Start with no fee and loop until there is enough fee
-            while (true)
+            while(true){
+				txNew.vin.clear();
+				txNew.vout.clear();
+				wtxNew.fFromMe = true;
+//				bool fFirst = true;
+
+				CAmount nValueToSelect = nValue;
+				CAmount voteFeeLimit = 0;	// add for PurchaseCommitmentScript
+				nValueToSelect += nFeeRet;		// default subtract fee from amount
+				CScript pkScript = PayToSStx(p2shOpTrueAddr);
+				CTxOut txoutpk(ticketPrice, pkScript);
+
+				txNew.vout.push_back(txoutpk);
+
+				CScript commitScript = PurchaseCommitmentScript(p2shOpTrueAddr, nValueToSelect, voteFeeLimit, ticketPrice);
+				CTxOut txoutct(0, commitScript);
+
+				txNew.vout.push_back(txoutct);
+
+				// Choose coins to use
+				if (pick_new_inputs) {
+					nValueIn = 0;
+					setCoins.clear();
+					if (!SelectCoins(vAvailableCoins, nValueToSelect, setCoins, nValueIn, &coin_control))
+					{
+						strFailReason = _("Insufficient funds");
+						return false;
+					}
+				}
+
+				const CAmount nChange = nValueIn - nValueToSelect;
+
+				CScript changeScript = PayToSStxChange(p2shOpTrueAddr);
+				CTxOut txoutcg(nChange, changeScript);
+
+				txNew.vout.push_back(txoutcg);
+
+				// Move sender input to position 0
+				vCoins.clear();
+				std::copy(setCoins.begin(), setCoins.end(), std::back_inserter(vCoins));
+				if(hasSender && coin_control.HasSelected()){
+					for (std::vector<CInputCoin>::size_type i = 0 ; i != vCoins.size(); i++){
+						if(vCoins[i].outpoint==senderInput){
+							if(i==0)break;
+							iter_swap(vCoins.begin(),vCoins.begin()+i);
+							break;
+						}
+					}
+				}
+
+				const uint32_t nSequence = coin_control.signalRbf ? MAX_BIP125_RBF_SEQUENCE : (CTxIn::SEQUENCE_FINAL - 1);
+				for (const auto& coin : vCoins)
+					txNew.vin.push_back(CTxIn(coin.outpoint, opTrueRedeemScript, nSequence));
+
+				nBytes = GetVirtualTransactionSize(txNew);
+
+				nFeeNeeded = GetMinimumFee(nBytes, coin_control, ::mempool, ::feeEstimator, &feeCalc);
+
+                // If we made it here and we aren't even able to meet the relay fee on the next pass, give up
+                // because we must be at the maximum allowed fee.
+                if (nFeeNeeded < ::minRelayTxFee.GetFee(nBytes))
+                {
+                    strFailReason = _("Transaction too large for fee policy");
+                    return false;
+                }
+
+                if(nFeeRet >= nFeeNeeded) {
+                    // Reduce fee to only the needed amount if possible. This
+                    // prevents potential overpayment in fees if the coins
+                    // selected to meet nFeeNeeded result in a transaction that
+                    // requires less fee than the prior iteration.
+
+                    // If we have no change and a big enough excess fee, then
+                    // try to construct transaction again only without picking
+                    // new inputs. We now know we only need the smaller fee
+                    // (because of reduced tx size) and so we should add a
+                    // change output. Only try this once.
+                	if(pick_new_inputs){
+                		nFeeRet = nFeeNeeded;
+                		pick_new_inputs = false;
+                		continue;
+                	}
+                	break; // Done, enough fee included.
+                }
+                else if (!pick_new_inputs) {
+                    // This shouldn't happen, we should have had enough excess
+                    // fee to pay for the new output and still meet nFeeNeeded
+                    // Or we should have just subtracted fee from recipients and
+                    // nFeeNeeded should not have changed
+                    strFailReason = _("Transaction fee and change calculation failed");
+                    return false;
+                }
+
+                // Include more fee and try again.
+                nFeeRet = nFeeNeeded;
+                continue;
+            }
+
+            // Embed the constructed transaction data in wtxNew.
+            wtxNew.SetTx(MakeTransactionRef(std::move(txNew)));
+
+            // Limit size
+            if (GetTransactionWeight(*wtxNew.tx) >= MAX_STANDARD_TX_WEIGHT)
             {
-                txNew.vin.clear();
-                txNew.vout.clear();
-                wtxNew.fFromMe = true;
-                bool fFirst = true;
-
-                CAmount nValueToSelect = nValue;
-                nValueToSelect += nFeeRet;		// default subtract fee from amount
-                CScript paysstx = PayToSStx(p2shOpTrueAddr);
-                CTxOut txout(ticketPrice, paysstx);
-
-                txNew.vout.push_back(txout);
+                strFailReason = _("Transaction too large");
+                return false;
             }
         }
     }
 
+    LogPrintf("Fee Calculation: Fee:%d Bytes:%u Needed:%d Tgt:%d (requested %d) Reason:\"%s\" Decay %.5f: Estimation: (%g - %g) %.2f%% %.1f/(%.1f %d mem %.1f out) Fail: (%g - %g) %.2f%% %.1f/(%.1f %d mem %.1f out)\n",
+              nFeeRet, nBytes, nFeeNeeded, feeCalc.returnedTarget, feeCalc.desiredTarget, StringForFeeReason(feeCalc.reason), feeCalc.est.decay,
+              feeCalc.est.pass.start, feeCalc.est.pass.end,
+              100 * feeCalc.est.pass.withinTarget / (feeCalc.est.pass.totalConfirmed + feeCalc.est.pass.inMempool + feeCalc.est.pass.leftMempool),
+              feeCalc.est.pass.withinTarget, feeCalc.est.pass.totalConfirmed, feeCalc.est.pass.inMempool, feeCalc.est.pass.leftMempool,
+              feeCalc.est.fail.start, feeCalc.est.fail.end,
+              100 * feeCalc.est.fail.withinTarget / (feeCalc.est.fail.totalConfirmed + feeCalc.est.fail.inMempool + feeCalc.est.fail.leftMempool),
+              feeCalc.est.fail.withinTarget, feeCalc.est.fail.totalConfirmed, feeCalc.est.fail.inMempool, feeCalc.est.fail.leftMempool);
+
+	return true;
+}
+
+bool CWallet::CreateVoteTx(CWalletTx& wtxNew, CReserveKey& reservekey, CBlockIndex* voteBlock, CTransaction& ticketTx, std::string& strFailReason,
+    						uint32_t ticketBlockHeight, uint32_t ticketBlockIndex)
+{
+	CMutableTransaction txNew;
+
+	// Calculate the proof-of-stake subsidy proportion based on the block
+	// height.
+	const Consensus::Params& consensusParams = Params().GetConsensus();
+	CAmount posSubsidy = calcPoSSubsidy(ticketBlockHeight, consensusParams);
+	CAmount voteSubsidy = posSubsidy / (CAmount)consensusParams.TicketsPerBlock;
+	CAmount ticketPrice = ticketTx.vout[0].nValue;
+
+	// The first output is the block (hash and height) the vote is for.
+	CScript blockScript = voteBlockScript(voteBlock);
+
+	// The second output is the vote bits.
+	CScript voteScript = voteBitsScript(voteBitYes);
+
+	// The third and subsequent outputs pay the original commitment amounts
+	// along with the appropriate portion of the vote subsidy.  This impl
+	// uses the standard pay-to-script-hash to an OP_TRUE.
+	CScript stakeGenScript = PayToSSGen(p2shOpTrueAddr);
+
+	// Generate and return the transaction with the proof-of-stake subsidy
+	// coinbase and spending from the provided ticket along with the
+	// previously described outputs.
+	uint256 ticketHash = ticketTx.GetHash();
+	const uint32_t nSequence = CTxIn::SEQUENCE_FINAL;
+	txNew.vin.push_back(CTxIn(COutPoint(uint256(), CTxIn::MaxPrevOutIndex), consensusParams.StakeBaseSigScript, nSequence));
+
+	txNew.vin.push_back(CTxIn(COutPoint(ticketHash, 0), opTrueRedeemScript, nSequence));
+
+	txNew.vout.push_back(CTxOut(0, blockScript));
+	txNew.vout.push_back(CTxOut(0, voteScript));
+	txNew.vout.push_back(CTxOut(voteSubsidy + ticketPrice, stakeGenScript));
+
+    // Embed the constructed transaction data in wtxNew.
+    wtxNew.SetTx(MakeTransactionRef(std::move(txNew)));
+
+    return true;
+}
+
+bool CreateRevocationTx(CWalletTx& wtxNew, CReserveKey& reservekey, CTransaction& ticketTx, std::string& strFailReason,
+		uint32_t ticketBlockHeight, uint32_t ticketBlockIndex)
+{
+	CMutableTransaction txNew;
+
+	// The outputs pay the original commitment amounts.  This impl uses the
+	// standard pay-to-script-hash to an OP_TRUE.
+	CScript revokeScript = PayToSSRtx(p2shOpTrueAddr);
+
+	// Generate and return the transaction spending from the provided ticket
+	// along with the previously described outputs.
+	CAmount ticketPrice = ticketTx.vout[0].nValue;
+	uint256 ticketHash = ticketTx.GetHash();
+
+	const uint32_t nSequence = CTxIn::SEQUENCE_FINAL;
+	txNew.vin.push_back(CTxIn(COutPoint(ticketHash, 0), opTrueRedeemScript, nSequence));
+	txNew.vout.push_back(CTxOut(ticketPrice, revokeScript));
+
+    // Embed the constructed transaction data in wtxNew.
+    wtxNew.SetTx(MakeTransactionRef(std::move(txNew)));
 
 	return true;
 }

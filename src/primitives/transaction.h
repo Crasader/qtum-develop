@@ -70,6 +70,10 @@ public:
      * disables nLockTime. */
     static const uint32_t SEQUENCE_FINAL = 0xffffffff;
 
+	// MaxPrevOutIndex is the maximum index the index field of a previous
+	// outpoint can be.
+    static const uint32_t MaxPrevOutIndex = 0xffffffff;
+
     /* Below flags apply in the context of BIP 68*/
     /* If this flag set, CTxIn::nSequence is NOT interpreted as a
      * relative lock-time. */

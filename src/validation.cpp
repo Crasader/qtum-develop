@@ -311,6 +311,7 @@ std::unique_ptr<CBlockTreeDB> pblocktree;
 std::unique_ptr<StorageResults> pstorageresult;
 
 uint160 p2shOpTrueAddr; // todo temple do this
+CScript opTrueRedeemScript;
 
 enum FlushStateMode {
     FLUSH_STATE_NONE,
@@ -1371,6 +1372,41 @@ CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
     // Subsidy is cut in half every 985500 blocks which will occur approximately every 4 years.
     nSubsidy >>= halvings;
     return nSubsidy;
+}
+
+// calcPoSSubsidy returns the proof-of-stake subsidy portion for a given block
+// height being voted on.
+//
+// NOTE: This and the other subsidy calculation funcs intentionally are not
+// using the blockchain code since the intent is to be able to generate known
+// good tests which exercise that code, so it wouldn't make sense to use the
+// same code to generate them.
+CAmount calcPoSSubsidy(int nHeight, const Consensus::Params& consensusParams)
+{
+	if((int64_t)(nHeight + 1) < consensusParams.StakeValidationHeight){
+		return 0;
+	}
+	CAmount fullSubsidy = calcFullSubsidy(nHeight, consensusParams);
+	CAmount posProportion = (CAmount)consensusParams.StakeRewardProportion;
+	CAmount totalProportions = (CAmount)consensusParams.TotalSubsidyProportions();
+	return (fullSubsidy * posProportion) / totalProportions;
+}
+
+// calcFullSubsidy returns the full block subsidy for the given block height.
+//
+// NOTE: This and the other subsidy calculation funcs intentionally are not
+// using the blockchain code since the intent is to be able to generate known
+// good tests which exercise that code, so it wouldn't make sense to use the
+// same code to generate them.
+CAmount calcFullSubsidy(int nHeight, const Consensus::Params& consensusParams)
+{
+	int64_t iterations = int64_t(nHeight) / consensusParams.SubsidyReductionInterval;
+	CAmount subsidy = consensusParams.BaseSubsidy;
+	for(int64_t num = 0; num < iterations; num++){
+		subsidy *= consensusParams.MulSubsidy;
+		subsidy /= consensusParams.DivSubsidy;
+	}
+	return subsidy;
 }
 
 bool IsInitialBlockDownload()

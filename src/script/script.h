@@ -49,6 +49,7 @@ enum opcodetype
 {
     // push value
     OP_0 = 0x00,
+	OP_DATA_1 = 0x01,	// decred
     OP_FALSE = OP_0,
     OP_PUSHDATA1 = 0x4c,
     OP_PUSHDATA2 = 0x4d,
@@ -394,6 +395,24 @@ public:
         return result;
     }
 
+//    static std::vector<unsigned char> serialize(const int32_t& value)
+//    {
+//        if(value == 0)
+//            return std::vector<unsigned char>();
+//
+//        std::vector<unsigned char> result;
+//
+//        int32_t valueCopy = value;
+//
+//        for(uint16_t num = 0; num < sizeof(int32_t); num++)
+//        {
+//            result.push_back(valueCopy & 0xff);
+//            valueCopy >>= 8;
+//        }
+//
+//        return result;
+//    }
+
 private:
     static int64_t set_vch(const std::vector<unsigned char>& vch)
     {
@@ -443,6 +462,12 @@ protected:
         }
         return *this;
     }
+
+//    CScript& push_int32(int32_t n)
+//    {
+//    	*this << CScriptNum::serialize(n);
+//        return *this;
+//    }
 public:
     CScript() { }
     CScript(const_iterator pbegin, const_iterator pend) : CScriptBase(pbegin, pend) { }
@@ -478,6 +503,7 @@ public:
 
 
     CScript& operator<<(int64_t b) { return push_int64(b); }
+//    CScript& operator<<(int32_t b) { return push_int32(b); }
 
     CScript& operator<<(opcodetype opcode)
     {

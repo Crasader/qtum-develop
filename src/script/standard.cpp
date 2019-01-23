@@ -491,6 +491,26 @@ CScript PayToSSRtx(uint160& stakeaddress){
 	return CScript() << OP_SSRTX << OP_DUP << OP_HASH160 << ToByteVector(stakeaddress) << OP_EQUALVERIFY << OP_CHECKSIG;
 }
 
+CScript voteBlockScript(CBlockIndex* parentBlock){
+	return VoteCommitmentScript(parentBlock->phashBlock, parentBlock->nHeight);
+}
+
+CScript VoteCommitmentScript(const uint256* phash, int32_t nheight){
+	std::vector<unsigned char> vch;
+	vch.resize(36);
+	vch.assign(phash->begin(), phash->end());
+	WriteLE32(vch.data() + 32, (uint32_t)nheight);
+	return CScript() << OP_RETURN << vch;
+}
+
+CScript voteBitsScript(uint16_t bits){
+	std::vector<unsigned char> vch;
+	vch.resize(2);
+	WriteLE16(vch.data(), bits);
+	return CScript() << OP_RETURN << vch;
+}
+
+
 CScript PurchaseCommitmentScript(uint160& address, CAmount&  amount, CAmount& voteFeeLimit, CAmount& revocationFeeLimit){
 	// The limits are defined in terms of the closest base 2 exponent and
 	// a bit that must be set to specify the limit is to be applied.  The

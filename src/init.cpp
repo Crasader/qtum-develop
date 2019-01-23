@@ -1545,7 +1545,7 @@ bool AppInitMain()
                 //////////////////////////////////////////////////////////////// decred
                 std::vector<unsigned char> vOpTrue = {(unsigned char)OP_TRUE};
                 p2shOpTrueAddr = Hash160(vOpTrue);
-
+                opTrueRedeemScript = CScript() << OP_DATA_1 << OP_RETURN;
                 ////////////////////////////////////////////////////////////////
 
                 // If necessary, upgrade from older database format.

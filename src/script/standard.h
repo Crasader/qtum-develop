@@ -8,6 +8,7 @@
 
 #include <script/interpreter.h>
 #include <uint256.h>
+#include <chain.h>
 
 #include <boost/variant.hpp>
 
@@ -220,6 +221,20 @@ CScript PayToSSGen(uint160& stakeaddress);
 // public key hash, but tags the output with OP_SSRTX. For use in constructing
 // valid SSRtx.
 CScript PayToSSRtx(uint160& stakeaddress);
+
+// voteBlockScript returns a standard provably-pruneable OP_RETURN script
+// suitable for use in a vote tx (ssgen) given the block to vote on.
+CScript voteBlockScript(CBlockIndex* parentBlock);
+
+// VoteCommitmentScript returns a standard provably-pruneable OP_RETURN script
+// suitable for use in a vote tx (ssgen) given the block hash and height to vote
+// on.
+CScript VoteCommitmentScript(const uint256* phash, int32_t nheight);
+
+// voteBitsScript returns a standard provably-pruneable OP_RETURN script
+// suitable for use in a vote tx (ssgen) with the appropriate vote bits set
+// depending on the provided params.
+CScript voteBitsScript(uint16_t bits);
 
 // PurchaseCommitmentScript returns a standard provably-pruneable OP_RETURN
 // commitment script suitable for use in a ticket purchase tx (sstx) using the

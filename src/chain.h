@@ -231,6 +231,12 @@ public:
     //! (memory only) Maximum nTime in the chain up to and including this block.
     unsigned int nTimeMax;
 
+    //////////////////////////////////////////////////////////////// decred
+    uint32_t poolSize;
+    uint8_t freshStake;
+    int64_t sBits;
+    ////////////////////////////////////////////////////////////////
+
     void SetNull()
     {
         phashBlock = nullptr;
@@ -260,6 +266,7 @@ public:
         hashProof = uint256();
         prevoutStake.SetNull();
         nMoneySupply = 0;
+        poolSize = 0;	// decred
     }
 
     CBlockIndex()
@@ -398,6 +405,11 @@ public:
     //! Efficiently find an ancestor of this block.
     CBlockIndex* GetAncestor(int height);
     const CBlockIndex* GetAncestor(int height) const;
+
+    //////////////////////////////////////////////////////////////// decred
+    int64_t sumPurchasedTickets(int64_t numToSum);
+    int64_t sumPurchasedTickets(int64_t numToSum) const;
+    ////////////////////////////////////////////////////////////////
 };
 
 arith_uint256 GetBlockProof(const CBlockIndex& block);
