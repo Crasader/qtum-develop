@@ -48,6 +48,22 @@ CBlockLocator CChain::GetLocator(const CBlockIndex *pindex) const {
     return CBlockLocator(vHave);
 }
 
+// FindFork returns the final common block between the provided node and the
+// the chain view.  It will return nil if there is no common block.
+//
+// For example, assume a block chain with a side chain as depicted below:
+//   genesis -> 1 -> 2 -> ... -> 5 -> 6  -> 7  -> 8
+//                                \-> 6a -> 7a
+//
+// Further, assume the view is for the longer chain depicted above.  That is to
+// say it consists of:
+//   genesis -> 1 -> 2 -> ... -> 5 -> 6 -> 7 -> 8.
+//
+// Invoking this function with block node 7a would return block node 5 while
+// invoking it with block node 7 would return itself since it is already part of
+// the branch formed by the view.
+//
+// This function is safe for concurrent access.
 const CBlockIndex *CChain::FindFork(const CBlockIndex *pindex) const {
     if (pindex == nullptr) {
         return nullptr;

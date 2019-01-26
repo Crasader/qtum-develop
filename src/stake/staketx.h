@@ -8,6 +8,8 @@
 
 #include <tinyformat.h>
 #include <primitives/transaction.h>
+#include <primitives/block.h>
+#include <chain.h>
 
 #include <util.h>
 #include <string>
@@ -107,6 +109,7 @@ const int VoteConsensusVersionAbsent = 0;
 
 using vec64 = std::vector<int64_t>;
 using valtype = std::vector<unsigned char>;
+using VoteVersionTuple = std::pair<uint32_t, uint16_t>;
 
 // validSStxAddressOutPrefix is the valid prefix for a 30-byte
 // minimum OP_RETURN push for a commitment for an SStx.
@@ -215,6 +218,14 @@ public:
     void SetCorruptionPossible() {
         corruptionPossible = true;
     }
+    /** Convert CValidationStakeState to a human-readable message for logging */
+    std::string FormatStateMessage()
+    {
+        return strprintf("%s%s (code %i)",
+            GetRejectReason(),
+            GetDebugMessage().empty() ? "" : ", " + GetDebugMessage(),
+            GetRejectCode());
+    }
     unsigned int GetRejectCode() const { return chRejectCode; }
     std::string GetRejectReason() const { return strRejectReason; }
     std::string GetDebugMessage() const { return strDebugMessage; }
@@ -227,6 +238,8 @@ public:
     	strDebugMessage = "";
 
     }
+
+
 };
 
 bool IsSSGen(const CTransaction& tx, CValidationStakeState& state);
@@ -234,6 +247,7 @@ bool CheckSSgen(const CTransaction& tx, CValidationStakeState& state);
 uint16_t SSGenVoteBits(const CTransaction& tx);
 void SSGenBlockVotedOn(const CTransaction& tx, uint256& hash, uint32_t& height);
 bool isNullOutpoint(const CTransaction& tx);
+uint32_t SSGenVersion(const CTransaction& tx);
 //bool isNullFraudProof(const CTransaction& tx);
 bool IsStakeBase(const CTransaction& tx);
 
@@ -244,6 +258,8 @@ bool SStxNullOutputAmounts(vec64 amounts, vec64 changeAmounts, int64_t amountTic
 
 bool IsSSRtx(const CTransaction& tx, CValidationStakeState &state);
 bool CheckSSRtx(const CTransaction& tx, CValidationStakeState &state);
+
+bool FindSpentTicketsInBlock(const CBlock& block, SpentTicketsInBlock& ticketinfo, CValidationStakeState& state);
 
 
 #endif //BITCOIN_STAKE_STAKETX_H

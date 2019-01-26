@@ -178,9 +178,9 @@ public:
 
 	friend bool InitDatabaseState(Consensus::Params& params, TicketNode& node);
 	friend bool LoadBestNode(uint32_t height, uint256& blockhash, CBlockHeader& header, Consensus::Params params, TicketNode& node);
-	friend bool connectNode(TicketNode& node, uint256& lotteryIV, TicketHashes& ticketsVoted, TicketHashes& revokedTickets, TicketHashes& newTickets, TicketNode& nodeOut);
-	friend bool disconnectNode(TicketNode& node, uint256& parentLotteryIV, std::vector<UndoTicketData>& parentUtds, TicketHashes& parentTickets, TicketNode& nodeOut);
-	friend bool WriteConnectedBestNode(TicketNode& node, uint256& hash);
+	friend bool connectNode(TicketNode& node, uint256 lotteryIV, TicketHashes& ticketsVoted, TicketHashes& revokedTickets, TicketHashes& newTickets, TicketNode& nodeOut);
+	friend bool disconnectNode(TicketNode& node, uint256 parentLotteryIV, std::vector<UndoTicketData>& parentUtds, TicketHashes& parentTickets, TicketNode& nodeOut);
+	friend bool WriteConnectedBestNode(TicketNode& node, const uint256& hash);
 	friend bool WriteDisconnectedBestNode(TicketNode& node, uint256& hash, std::vector<UndoTicketData>& childUndoData);
 
 private:
@@ -220,9 +220,9 @@ bool LoadBestNode(uint32_t height, uint256& blockhash, CBlockHeader& header, Con
 bool safeGet(Immutable& imu, uint256& hash, uint32_t* height, uint8_t* flag);
 bool safePut(Immutable& imu, uint256& hash, uint32_t& height, uint8_t& flag);
 bool safeDelete(Immutable& imu, uint256& hash);
-bool connectNode(TicketNode& node, uint256& lotteryIV, TicketHashes& ticketsVoted, TicketHashes& revokedTickets, TicketHashes& newTickets, TicketNode& nodeOut);
-bool disconnectNode(TicketNode& node, uint256& parentLotteryIV, std::vector<UndoTicketData>& parentUtds, TicketHashes& parentTickets, TicketNode& nodeOut);
-bool WriteConnectedBestNode(TicketNode& node, uint256& hash);
+bool connectNode(TicketNode& node, uint256 lotteryIV, TicketHashes& ticketsVoted, TicketHashes& revokedTickets, TicketHashes& newTickets, TicketNode& nodeOut);
+bool disconnectNode(TicketNode& node, uint256 parentLotteryIV, std::vector<UndoTicketData>& parentUtds, TicketHashes& parentTickets, TicketNode& nodeOut);
+bool WriteConnectedBestNode(TicketNode& node, const uint256& hash);
 bool WriteDisconnectedBestNode(TicketNode& node, uint256& hash, std::vector<UndoTicketData>& childUndoData);
 
 #endif /* BITCOIN_STAKE_TICKETS_H_ */

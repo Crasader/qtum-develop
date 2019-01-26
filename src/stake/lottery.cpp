@@ -16,7 +16,7 @@
 // given seed.  This can be used in conjunction with the NewHash256PRNGFromIV
 // function to arrive at the same values that are produced when calling
 // NewHash256PRNG with the seed.
-uint256 CalcHash256PRNGIV(std::vector<unsigned char>& seed){
+uint256 CalcHash256PRNGIV(std::vector<unsigned char> seed){
 	uint256 hashOut;
 	CSHA256().Write(seed.data(), seed.size()).Write(seedConst.data(), seedConst.size()).Finalize(hashOut.begin());
 	return hashOut;
@@ -48,7 +48,7 @@ Hash256PRNG NewHash256PRNGFromIV(uint256 hash) {
 // NewHash256PRNG returns a deterministic pseudorandom number generator that
 // uses a 256-bit secure hashing function to generate random uint32s given a
 // seed.
-Hash256PRNG NewHash256PRNG(std::vector<unsigned char>& seed){
+Hash256PRNG NewHash256PRNG(std::vector<unsigned char> seed){
 	return NewHash256PRNGFromIV(CalcHash256PRNGIV(seed));
 }
 

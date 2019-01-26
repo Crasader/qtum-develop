@@ -45,6 +45,28 @@ bool IsStakeBase(const CTransaction& tx) {
 	return true;
 }
 
+// SSGenVoteBits takes an SSGen tx as input and scans through its
+// outputs, returning the VoteBits of the index 1 output.
+//
+// This function is only safe to be called on a transaction that
+// has passed IsSSGen.
+uint16_t SSGenVoteBits(const CTransaction& tx){
+	return ReadLE16(tx.vout[1].scriptPubKey.data() + 2);
+}
+
+// SSGenVersion takes an SSGen tx as input and returns the network
+// consensus version from the VoteBits output.  If there is a short
+// read, the network consensus version is considered 0 or "unset".
+//
+// This function is only safe to be called on a transaction that
+// has passed IsSSGen.
+uint32_t SSGenVersion(const CTransaction& tx){
+	if(tx.vout[1].scriptPubKey.size() < 8){
+		return VoteConsensusVersionAbsent;
+	}
+	return ReadLE32(tx.vout[1].scriptPubKey.data() + 4);
+}
+
 // IsSSGen returns whether or not a transaction is a stake submission generation
 // transaction.  There are also known as votes.
 bool IsSSGen(const CTransaction& tx, CValidationStakeState& state) {
@@ -149,16 +171,6 @@ bool CheckSSgen(const CTransaction& tx, CValidationStakeState& state) {
 	}
 
 	return true;
-}
-
-// SSGenVoteBits takes an SSGen tx as input and scans through its
-// outputs, returning the VoteBits of the index 1 output.
-//
-// This function is only safe to be called on a transaction that
-// has passed IsSSGen.
-uint16_t SSGenVoteBits(const CTransaction& tx){
-	CScript::const_iterator pbegin = tx.vout[1].scriptPubKey.begin();
-	return ReadLE16(&pbegin[2]);
 }
 
 // SSGenBlockVotedOn takes an SSGen tx and returns the block voted on hash and height.
@@ -453,6 +465,46 @@ bool CheckSSRtx(const CTransaction& tx, CValidationStakeState &state){
 	// Ensure the number of outputs is equal to the number of inputs found in
 	// the original SStx.
 	// TODO: Do this in validate, needs a DB and chain.
+
+	return true;
+}
+
+
+// FindSpentTicketsInBlock returns information about tickets spent in a given
+// block. This includes voted and revoked tickets, and the vote bits of each
+// spent ticket. This is faster than calling the individual functions to
+// determine ticket state if all information regarding spent tickets is needed.
+//
+// Note that the returned hashes are of the originally purchased *tickets* and
+// **NOT** of the vote/revoke transaction.
+//
+// The tickets are determined **only** from the STransactions of the provided
+// block and no validation is performed.
+//
+// This function is only safe to be called with a block that has previously
+// had all header commitments validated. TODO TEST, ypf
+bool FindSpentTicketsInBlock(const CBlock& block, SpentTicketsInBlock& ticketinfo, CValidationStakeState& state){
+	std::vector<VoteVersionTuple> votes;
+	votes.resize(block.Voters);
+	std::vector<uint256> voters;
+	voters.resize(block.Voters);
+	std::vector<uint256> revocations;
+	revocations.resize(block.Revocations);
+
+	for(auto stx : block.svtx){
+		if(IsSSGen(*stx, state)){
+			voters.push_back(stx->vin[0].prevout.hash);
+			votes.push_back(std::make_pair(SSGenVersion(*stx), SSGenVoteBits(*stx)));
+			continue;
+		}
+		if(IsSSRtx(*stx, state)){
+			revocations.push_back(stx->vin[0].prevout.hash);
+			continue;
+		}
+	}
+	ticketinfo.VotedTickets = voters;
+	ticketinfo.Votes = votes;
+	ticketinfo.RevokedTickets = revocations;
 
 	return true;
 }

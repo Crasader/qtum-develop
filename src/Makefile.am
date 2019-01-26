@@ -147,6 +147,7 @@ BITCOIN_CORE_H = \
   script/standard.h \
   script/ismine.h \
   stake/ticketdb/chainio.h \
+  stakenode.h \
   streams.h \
   support/allocators/secure.h \
   support/allocators/zeroafterfree.h \
@@ -236,6 +237,7 @@ libbitcoin_server_a_SOURCES = \
   txmempool.cpp \
   ui_interface.cpp \
   validation.cpp \
+  stakenode.cpp \
   validationinterface.cpp \
   versionbits.cpp \
   qtum/qtumstate.cpp \
@@ -613,6 +615,7 @@ libbitcoin_stake_a_SOURCES = \
   script/script.h \
   script/script.cpp \
   stake/staketx.cpp \
+  stake/staketx.h \
   stake/tickettreap/common.h \
   stake/tickettreap/common.cpp \
   stake/ticketdb/chainio.cpp \

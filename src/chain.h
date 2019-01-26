@@ -11,6 +11,7 @@
 #include <pow.h>
 #include <tinyformat.h>
 #include <uint256.h>
+#include <stake/tickets.h>
 
 #include <vector>
 
@@ -27,6 +28,24 @@ static const int64_t MAX_FUTURE_BLOCK_TIME = 2 * 60 * 60;
  * MAX_FUTURE_BLOCK_TIME.
  */
 static const int64_t TIMESTAMP_WINDOW = MAX_FUTURE_BLOCK_TIME;
+
+// VoteVersionTuple contains the extracted vote bits and version from votes
+// (SSGen).
+using VoteVersionTuple = std::pair<uint32_t, uint16_t>;
+
+class SpentTicketsInBlock{
+public:
+	SpentTicketsInBlock() { SetNull(); }
+	std::vector<uint256> VotedTickets;
+	std::vector<uint256> RevokedTickets;
+	std::vector<VoteVersionTuple> Votes;
+
+	void SetNull() {
+		VotedTickets.clear();
+		RevokedTickets.clear();
+		Votes.clear();
+	}
+};
 
 class CBlockFileInfo
 {
@@ -235,6 +254,19 @@ public:
     uint32_t poolSize;
     uint8_t freshStake;
     int64_t sBits;
+    std::vector<uint256> newTickets;
+    std::vector<uint256> ticketsVoted;
+    std::vector<uint256> ticketsRevoked;
+
+    // Keep track of all vote version and bits in this block.
+    std::vector<VoteVersionTuple> votes;
+
+	// stakeNode contains all the consensus information required for the
+	// staking system.  The node also caches information required to add or
+	// remove stake nodes, so that the stake node itself may be pruneable
+	// to save memory while maintaining high throughput efficiency for the
+	// evaluation of sidechains.
+    std::shared_ptr<TicketNode> stakeNode;
     ////////////////////////////////////////////////////////////////
 
     void SetNull()
@@ -409,6 +441,31 @@ public:
     //////////////////////////////////////////////////////////////// decred
     int64_t sumPurchasedTickets(int64_t numToSum);
     int64_t sumPurchasedTickets(int64_t numToSum) const;
+
+    // populateTicketInfo sets prunable ticket information in the provided block
+    // node.
+    //
+    // This function is NOT safe for concurrent access.  It must only be called when
+    // initially creating a node or when protected by the chain lock.
+    void populateTicketInfo(SpentTicketsInBlock spentTickets){
+    	ticketsVoted = spentTickets.VotedTickets;
+    	ticketsRevoked = spentTickets.RevokedTickets;
+    	votes = spentTickets.Votes;
+    }
+
+    // lotteryIV returns the initialization vector for the deterministic PRNG used
+    // to determine winning tickets.
+    //
+    // This function is safe for concurrent access.
+    uint256 lotteryIV(){
+    	// Serialize the block header for use in calculating the initialization
+    	// vector for the ticket lottery.  The only way this can fail is if the
+    	// process is out of memory in which case it would panic anyways, so
+    	// although panics are generally frowned upon in package code, it is
+    	// acceptable here.
+    	std::string strHex = GetBlockHeader().GetHex();
+    	return CalcHash256PRNGIV(std::vector<unsigned char> ((unsigned char*)strHex.c_str(), (unsigned char*)strHex.c_str() + strHex.size()));
+    }
     ////////////////////////////////////////////////////////////////
 };
 
@@ -493,6 +550,7 @@ public:
             hashPrev.ToString());
         return str;
     }
+
 };
 
 /** An in-memory indexed chain of blocks. */
@@ -553,6 +611,7 @@ public:
 
     /** Find the earliest block with timestamp equal or greater than the given. */
     CBlockIndex* FindEarliestAtLeast(int64_t nTime) const;
+
 };
 
 #endif // BITCOIN_CHAIN_H

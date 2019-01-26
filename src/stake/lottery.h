@@ -22,9 +22,9 @@
 static const std::vector<unsigned char> seedConst = {0x24, 0x3F, 0x6A, 0x88, 0x85, 0xA3, 0x08, 0xD3};
 
 class Hash256PRNG;
-uint256 CalcHash256PRNGIV(std::vector<unsigned char>& seed);
+uint256 CalcHash256PRNGIV(std::vector<unsigned char> seed);
 Hash256PRNG NewHash256PRNGFromIV(uint256 hash);
-Hash256PRNG NewHash256PRNG(std::vector<unsigned char>& seed);
+Hash256PRNG NewHash256PRNG(std::vector<unsigned char> seed);
 bool findTicketIdxs(int32_t size, uint16_t n, Hash256PRNG& prng, std::vector<int32_t>& lis);
 bool fetchWinners(std::vector<int32_t> idxs, Immutable& t,  std::vector<uint256>& winners);
 

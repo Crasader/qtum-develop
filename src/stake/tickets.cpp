@@ -105,9 +105,7 @@ bool LoadBestNode(uint32_t height, uint256& blockhash, CBlockHeader& header, Con
 		}
 
 		const std::string headerHex = header.GetHex();
-		std::vector<unsigned char> vech;
-		vech.assign(headerHex.begin(), headerHex.end());
-		Hash256PRNG prng = NewHash256PRNG(vech);
+		Hash256PRNG prng = NewHash256PRNG(std::vector<unsigned char> (headerHex.begin(), headerHex.end()));
 		std::vector<int32_t> list;
 		bool res = findTicketIdxs(node.liveTickets.Len(), node.params.TicketsPerBlock, prng, list);
 		if(res == false) return false;
@@ -214,7 +212,7 @@ bool TicketNode::ForEachByHeight(uint32_t heightLessThan){
 // the argument node is the parent node, and that the child stake node is
 // returned after subsequent modification of the parent node's immutable
 // data.
-bool connectNode(TicketNode& node, uint256& lotteryIV, TicketHashes& ticketsVoted, TicketHashes& revokedTickets, TicketHashes& newTickets, TicketNode& nodeOut){
+bool connectNode(TicketNode& node, uint256 lotteryIV, TicketHashes& ticketsVoted, TicketHashes& revokedTickets, TicketHashes& newTickets, TicketNode& nodeOut){
 	nodeOut.height = node.height + 1;
 	nodeOut.liveTickets = node.liveTickets;
 	nodeOut.revokedTickets = node.revokedTickets;
@@ -366,7 +364,7 @@ bool connectNode(TicketNode& node, uint256& lotteryIV, TicketHashes& ticketsVote
 // the parent node.  The database transaction should be included if the
 // UndoTicketDataSlice or tickets are nil in order to look up the undo data or
 // tickets from the database.
-bool disconnectNode(TicketNode& node, uint256& parentLotteryIV, std::vector<UndoTicketData>& parentUtds, TicketHashes& parentTickets, TicketNode& nodeOut){
+bool disconnectNode(TicketNode& node, uint256 parentLotteryIV, std::vector<UndoTicketData>& parentUtds, TicketHashes& parentTickets, TicketNode& nodeOut){
 	// Edge case for the parent being the genesis block.
 	if(node.height == 1){
 		nodeOut.genesisNode(node.params);
@@ -391,14 +389,13 @@ bool disconnectNode(TicketNode& node, uint256& parentLotteryIV, std::vector<Undo
 		}
 	}
 
-	TicketNode restoredNode;
-	restoredNode.height = node.height - 1;
-	restoredNode.liveTickets = node.liveTickets;
-	restoredNode.missedTickets = node.missedTickets;
-	restoredNode.revokedTickets = node.revokedTickets;
-	restoredNode.databaseUndoUpdate = parentUtds;
-	restoredNode.databaseBlockTickets = parentTickets;
-	restoredNode.params = node.params;
+	nodeOut.height = node.height - 1;
+	nodeOut.liveTickets = node.liveTickets;
+	nodeOut.missedTickets = node.missedTickets;
+	nodeOut.revokedTickets = node.revokedTickets;
+	nodeOut.databaseUndoUpdate = parentUtds;
+	nodeOut.databaseBlockTickets = parentTickets;
+	nodeOut.params = node.params;
 
 	// Iterate through the block undo data and write all database
 	// changes to the respective treap, reversing all the changes
@@ -410,7 +407,7 @@ bool disconnectNode(TicketNode& node, uint256& parentLotteryIV, std::vector<Undo
 		// All flags are unset; this is a newly added ticket.
 		// Remove it from the list of live tickets.
 		if(!(undo.flag & TICKET_STATE_SPENT) && !(undo.flag & TICKET_STATE_REVOKED) && !(undo.flag & TICKET_STATE_MISSED)){
-			if(safeDelete(restoredNode.liveTickets, undo.ticketHash) == false){
+			if(safeDelete(nodeOut.liveTickets, undo.ticketHash) == false){
 				return false;
 			}
 		}
@@ -419,10 +416,10 @@ bool disconnectNode(TicketNode& node, uint256& parentLotteryIV, std::vector<Undo
 		// missed ticket treap.
 		else if((undo.flag & TICKET_STATE_MISSED) && (undo.flag & TICKET_STATE_REVOKED)){
 			undo.flag &= ~TICKET_STATE_REVOKED;
-			if(safeDelete(restoredNode.revokedTickets, undo.ticketHash) == false){
+			if(safeDelete(nodeOut.revokedTickets, undo.ticketHash) == false){
 				return false;
 			}
-			if(safePut(restoredNode.missedTickets, undo.ticketHash, undo.ticketHeight, undo.flag) == false){
+			if(safePut(nodeOut.missedTickets, undo.ticketHash, undo.ticketHeight, undo.flag) == false){
 				return false;
 			}
 		}
@@ -433,17 +430,17 @@ bool disconnectNode(TicketNode& node, uint256& parentLotteryIV, std::vector<Undo
 			// Expired tickets could never have been
 			// winners.
 			if(!(undo.flag & TICKET_STATE_EXPIRED)){
-				restoredNode.nextwinners.push_back(undo.ticketHash);
+				nodeOut.nextwinners.push_back(undo.ticketHash);
 				stateBuffer[index] = undo.ticketHash;
 				index++;
 			} else {
 				undo.flag &= ~TICKET_STATE_EXPIRED;
 			}
 			undo.flag &= ~TICKET_STATE_MISSED;
-			if(safeDelete(restoredNode.missedTickets, undo.ticketHash) == false){
+			if(safeDelete(nodeOut.missedTickets, undo.ticketHash) == false){
 				return false;
 			}
-			if(safePut(restoredNode.liveTickets, undo.ticketHash, undo.ticketHeight, undo.flag) == false){
+			if(safePut(nodeOut.liveTickets, undo.ticketHash, undo.ticketHeight, undo.flag) == false){
 				return false;
 			}
 		}
@@ -453,10 +450,10 @@ bool disconnectNode(TicketNode& node, uint256& parentLotteryIV, std::vector<Undo
 		// winners.
 		else if(undo.flag & TICKET_STATE_SPENT){
 			undo.flag &= ~TICKET_STATE_EXPIRED;
-			restoredNode.nextwinners.push_back(undo.ticketHash);
+			nodeOut.nextwinners.push_back(undo.ticketHash);
 			stateBuffer[index] = undo.ticketHash;
 			index++;
-			if(safePut(restoredNode.liveTickets, undo.ticketHash, undo.ticketHeight, undo.flag) == false){
+			if(safePut(nodeOut.liveTickets, undo.ticketHash, undo.ticketHeight, undo.flag) == false){
 				return false;
 			}
 		}
@@ -467,7 +464,7 @@ bool disconnectNode(TicketNode& node, uint256& parentLotteryIV, std::vector<Undo
 	if(node.height >= (uint32_t)node.params.StakeValidationHeight){
 		Hash256PRNG prng = NewHash256PRNGFromIV(parentLotteryIV);
 		std::vector<int32_t> lis;
-		if(findTicketIdxs(restoredNode.liveTickets.Len(), node.params.TicketsPerBlock, prng, lis) == false){
+		if(findTicketIdxs(nodeOut.liveTickets.Len(), node.params.TicketsPerBlock, prng, lis) == false){
 			return false;
 		}
 		uint256 lastHash;
@@ -489,7 +486,7 @@ bool disconnectNode(TicketNode& node, uint256& parentLotteryIV, std::vector<Undo
 // WriteConnectedBestNode writes the newly connected best node to the database
 // under an atomic database transaction, performing all the necessary writes to
 // the database buckets for live, missed, and revoked tickets.
-bool WriteConnectedBestNode(TicketNode& node, uint256& hash){
+bool WriteConnectedBestNode(TicketNode& node, const uint256& hash){
 	// Iterate through the block undo data and write all database
 	// changes to the respective on-disk map.
 	for(auto undo : node.databaseUndoUpdate){
@@ -698,6 +695,5 @@ bool WriteDisconnectedBestNode(TicketNode& node, uint256& hash, std::vector<Undo
 	};
 	return pdbinfoview->writeBestChainState(bcs);
 }
-
 
 

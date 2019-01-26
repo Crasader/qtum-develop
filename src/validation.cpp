@@ -30,6 +30,7 @@
 #include <script/sigcache.h>
 #include <script/standard.h>
 #include <stake/ticketdb/chainio.h>
+#include <stakenode.h>
 #include <timedata.h>
 #include <tinyformat.h>
 #include <txdb.h>
@@ -183,7 +184,9 @@ public:
     DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* pindex, CCoinsViewCache& view, bool* pfClean);
     bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pindex,
                     CCoinsViewCache& view, const CChainParams& chainparams, bool fJustCheck = false);
+    bool connectBlockMock(CValidationState& state, CBlockIndex* node, const CBlock& block, CBlock& parent, CCoinsViewCache& view, const CChainParams& chainparams, TxSpends& stxos, bool fJustCheck);
     bool UpdateHashProof(const CBlock& block, CValidationState& state, const Consensus::Params& consensusParams, CBlockIndex* pindex, CCoinsViewCache& view);
+    bool UpdateHashProofMock(const CBlock& block, CValidationState& state, const Consensus::Params& consensusParams, CBlockIndex* node, CCoinsViewCache& view);
 
     // Block disconnection on our pcoinsTip:
     bool DisconnectTip(CValidationState& state, const CChainParams& chainparams, DisconnectedBlockTransactions *disconnectpool);
@@ -1293,7 +1296,7 @@ bool ReadBlockFromDisk(Block& block, const CDiskBlockPos& pos, const Consensus::
     }
 
     // Check the header
-    if(!block.IsProofOfStake()) {
+    if(!block.IsProofOfStake()) {		// TODO remove pos, ypf
         //PoS blocks can be loaded out of order from disk, which makes PoS impossible to validate. So, do not validate their headers
         //they will be validated later in CheckBlock and ConnectBlock anyway
         if (!CheckHeaderProof(block, consensusParams))
@@ -2651,31 +2654,31 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
 
         nInputs += tx.vin.size();
 
-        if (!tx.IsCoinBase())
-        {
-            CAmount txfee = 0;
-            if (!Consensus::CheckTxInputs(tx, state, view, pindex->nHeight, txfee)) {
-                return error("%s: Consensus::CheckTxInputs: %s, %s", __func__, tx.GetHash().ToString(), FormatStateMessage(state));
-            }
-            nFees += txfee;
-            if (!MoneyRange(nFees)) {
-                return state.DoS(100, error("%s: accumulated fee in the block out of range.", __func__),
-                                 REJECT_INVALID, "bad-txns-accumulated-fee-outofrange");
-            }
+//        if (!tx.IsCoinBase())	// remove not coinbase check, ypf
+//        {
+		CAmount txfee = 0;
+		if (!Consensus::CheckTxInputs(tx, state, view, pindex->nHeight, txfee)) {
+			return error("%s: Consensus::CheckTxInputs: %s, %s", __func__, tx.GetHash().ToString(), FormatStateMessage(state));
+		}
+		nFees += txfee;
+		if (!MoneyRange(nFees)) {
+			return state.DoS(100, error("%s: accumulated fee in the block out of range.", __func__),
+							 REJECT_INVALID, "bad-txns-accumulated-fee-outofrange");
+		}
 
-            // Check that transaction is BIP68 final
-            // BIP68 lock checks (as opposed to nLockTime checks) must
-            // be in ConnectBlock because they require the UTXO set
-            prevheights.resize(tx.vin.size());
-            for (size_t j = 0; j < tx.vin.size(); j++) {
-                prevheights[j] = view.AccessCoin(tx.vin[j].prevout).nHeight;
-            }
+		// Check that transaction is BIP68 final
+		// BIP68 lock checks (as opposed to nLockTime checks) must
+		// be in ConnectBlock because they require the UTXO set
+		prevheights.resize(tx.vin.size());
+		for (size_t j = 0; j < tx.vin.size(); j++) {
+			prevheights[j] = view.AccessCoin(tx.vin[j].prevout).nHeight;
+		}
 
-            if (!SequenceLocks(tx, nLockTimeFlags, &prevheights, *pindex)) {
-                return state.DoS(100, error("%s: contains a non-BIP68-final transaction", __func__),
-                                 REJECT_INVALID, "bad-txns-nonfinal");
-            }
-        }
+		if (!SequenceLocks(tx, nLockTimeFlags, &prevheights, *pindex)) {
+			return state.DoS(100, error("%s: contains a non-BIP68-final transaction", __func__),
+							 REJECT_INVALID, "bad-txns-nonfinal");
+		}
+//        }
 
         // GetTransactionSigOpCost counts 3 types of sigops:
         // * legacy (always)
@@ -2992,6 +2995,557 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
     assert(pindex->phashBlock);
     // add this block to the view's block chain
     view.SetBestBlock(pindex->GetBlockHash());
+
+    int64_t nTime5 = GetTimeMicros(); nTimeIndex += nTime5 - nTime4;
+    LogPrint(BCLog::BENCH, "    - Index writing: %.2fms [%.2fs (%.2fms/blk)]\n", MILLI * (nTime5 - nTime4), nTimeIndex * MICRO, nTimeIndex * MILLI / nBlocksTotal);
+
+    int64_t nTime6 = GetTimeMicros(); nTimeCallbacks += nTime6 - nTime5;
+    LogPrint(BCLog::BENCH, "    - Callbacks: %.2fms [%.2fs (%.2fms/blk)]\n", MILLI * (nTime6 - nTime5), nTimeCallbacks * MICRO, nTimeCallbacks * MILLI / nBlocksTotal);
+
+    if (fLogEvents)
+        pstorageresult->commitResults();
+
+    return true;
+}
+
+
+// connectBlock handles connecting the passed node/block to the end of the main
+// (best) chain.
+//
+// This passed utxo view must have all referenced txos the block spends marked
+// as spent and all of the new txos the block creates added to it.  In addition,
+// the passed stxos slice must be populated with all of the information for the
+// spent txos.  This approach is used because the connection validation that
+// must happen prior to calling this function requires the same details, so
+// it would be inefficient to repeat it.
+//
+// This function MUST be called with the chain state lock held (for writes).
+bool CChainState::connectBlockMock(CValidationState& state, CBlockIndex* node, const CBlock& block, CBlock& parent, CCoinsViewCache& view, const CChainParams& chainparams, TxSpends& stxos, bool fJustCheck){
+    AssertLockHeld(cs_main);
+    assert(node);
+    // pindex->phashBlock can be null if called by CreateNewBlock/TestBlockValidity
+    assert((node->phashBlock == nullptr) ||
+           (*node->phashBlock == block.GetHash()));
+    int64_t nTimeStart = GetTimeMicros();
+
+    ///////////////////////////////////////////////// // qtum
+    QtumDGP qtumDGP(globalState.get(), fGettingValuesDGP);
+    globalSealEngine->setQtumSchedule(qtumDGP.getGasSchedule(node->nHeight + 1));
+    uint32_t sizeBlockDGP = qtumDGP.getBlockSize(node->nHeight + 1);
+    uint64_t minGasPrice = qtumDGP.getMinGasPrice(node->nHeight + 1);
+    uint64_t blockGasLimit = qtumDGP.getBlockGasLimit(node->nHeight + 1);
+    dgpMaxBlockSize = sizeBlockDGP ? sizeBlockDGP : dgpMaxBlockSize;
+    updateBlockSizeParams(dgpMaxBlockSize);
+    CBlock checkBlock(block.GetBlockHeader());
+    std::vector<CTxOut> checkVouts;
+
+    uint64_t countCumulativeGasUsed = 0;
+    /////////////////////////////////////////////////
+
+    // Move this check from CheckBlock to ConnectBlock as it depends on DGP values
+    if (block.vtx.empty() || block.vtx.size() > dgpMaxBlockSize || ::GetSerializeSize(block, SER_NETWORK, PROTOCOL_VERSION | SERIALIZE_TRANSACTION_NO_WITNESS) > dgpMaxBlockSize) // qtum
+        return state.DoS(100, false, REJECT_INVALID, "bad-blk-length", false, "size limits failed");
+
+    // Move this check from ContextualCheckBlock to ConnectBlock as it depends on DGP values
+    if (GetBlockWeight(block) > dgpMaxBlockWeight) {
+        return state.DoS(100, false, REJECT_INVALID, "bad-blk-weight", false, strprintf("%s : weight limit failed", __func__));
+    }
+
+    // Check it again in case a previous version let a bad block in
+    // NOTE: We don't currently (re-)invoke ContextualCheckBlock() or
+    // ContextualCheckBlockHeader() here. This means that if we add a new
+    // consensus rule that is enforced in one of those two functions, then we
+    // may have let in a block that violates the rule prior to updating the
+    // software, and we would NOT be enforcing the rule here. Fully solving
+    // upgrade from one software version to the next after a consensus rule
+    // change is potentially tricky and issue-specific (see RewindBlockIndex()
+    // for one general approach that was used for BIP 141 deployment).
+    // Also, currently the rule against blocks more than 2 hours in the future
+    // is enforced in ContextualCheckBlockHeader(); we wouldn't want to
+    // re-enforce that rule here (at least until we make it impossible for
+    // GetAdjustedTime() to go backward).
+
+    /* TODO modify the check principle, ypf
+    if (!CheckBlock(block, state, chainparams.GetConsensus(), !fJustCheck, !fJustCheck))
+        return error("%s: Consensus::CheckBlock: %s", __func__, FormatStateMessage(state));
+     */
+
+    // verify that the view's current state corresponds to the previous block
+    uint256 hashPrevBlock = node->pprev == nullptr ? uint256() : node->pprev->GetBlockHash();
+    assert(hashPrevBlock == view.GetBestBlock());
+
+
+    // Special case for the genesis block, skipping connection of its transactions
+    // (its coinbase is unspendable)
+    if (block.GetHash() == chainparams.GetConsensus().hashGenesisBlock) {
+        if (!fJustCheck)
+            view.SetBestBlock(node->GetBlockHash());
+        return true;
+    }
+
+    // State is filled in by UpdateHashProof TODO modify the check principle, ypf
+    if (!UpdateHashProofMock(block, state, chainparams.GetConsensus(), node, view)) {
+        return error("%s: ConnectBlock(): %s", __func__, state.GetRejectReason().c_str());
+    }
+    nBlocksTotal++;
+
+    //////////////////////////////////////////////////////////////// decred
+    std::shared_ptr<TicketNode> stakeNode;
+    fetchStakeNode(chainparams.GetConsensus(), node, stakeNode);
+
+    // Insert the block into the stake database.
+    if(WriteConnectedBestNode(*stakeNode, *node->phashBlock)){
+    	return false;
+    }
+    ////////////////////////////////////////////////////////////////
+
+    bool fScriptChecks = true;
+    if (!hashAssumeValid.IsNull()) {
+        // We've been configured with the hash of a block which has been externally verified to have a valid history.
+        // A suitable default value is included with the software and updated from time to time.  Because validity
+        //  relative to a piece of software is an objective fact these defaults can be easily reviewed.
+        // This setting doesn't force the selection of any particular chain but makes validating some faster by
+        //  effectively caching the result of part of the verification.
+        BlockMap::const_iterator  it = mapBlockIndex.find(hashAssumeValid);
+        if (it != mapBlockIndex.end()) {
+            if (it->second->GetAncestor(node->nHeight) == node &&
+                pindexBestHeader->GetAncestor(node->nHeight) == node &&
+                pindexBestHeader->nChainWork >= nMinimumChainWork) {
+                // This block is a member of the assumed verified chain and an ancestor of the best header.
+                // The equivalent time check discourages hash power from extorting the network via DOS attack
+                //  into accepting an invalid block through telling users they must manually set assumevalid.
+                //  Requiring a software change or burying the invalid block, regardless of the setting, makes
+                //  it hard to hide the implication of the demand.  This also avoids having release candidates
+                //  that are hardly doing any signature verification at all in testing without having to
+                //  artificially set the default assumed verified block further back.
+                // The test against nMinimumChainWork prevents the skipping when denied access to any chain at
+                //  least as good as the expected chain.
+                fScriptChecks = (GetBlockProofEquivalentTime(*pindexBestHeader, *node, *pindexBestHeader, chainparams.GetConsensus()) <= 60 * 60 * 24 * 7 * 2);
+            }
+        }
+    }
+
+    int64_t nTime1 = GetTimeMicros(); nTimeCheck += nTime1 - nTimeStart;
+    LogPrint(BCLog::BENCH, "    - Sanity checks: %.2fms [%.2fs (%.2fms/blk)]\n", MILLI * (nTime1 - nTimeStart), nTimeCheck * MICRO, nTimeCheck * MILLI / nBlocksTotal);
+
+    // Do not allow blocks that contain transactions which 'overwrite' older transactions,
+    // unless those are already completely spent.
+    // If such overwrites are allowed, coinbases and transactions depending upon those
+    // can be duplicated to remove the ability to spend the first instance -- even after
+    // being sent to another address.
+    // See BIP30 and http://r6.ca/blog/20120206T005236Z.html for more information.
+    // This logic is not necessary for memory pool transactions, as AcceptToMemoryPool
+    // already refuses previously-known transaction ids entirely.
+    // This rule was originally applied to all blocks with a timestamp after March 15, 2012, 0:00 UTC.
+    // Now that the whole chain is irreversibly beyond that time it is applied to all blocks except the
+    // two in the chain that violate it. This prevents exploiting the issue against nodes during their
+    // initial block download.
+    bool fEnforceBIP30 = (!node->phashBlock);
+
+    // Once BIP34 activated it was not possible to create new duplicate coinbases and thus other than starting
+    // with the 2 existing duplicate coinbase pairs, not possible to create overwriting txs.  But by the
+    // time BIP34 activated, in each of the existing pairs the duplicate coinbase had overwritten the first
+    // before the first had been spent.  Since those coinbases are sufficiently buried its no longer possible to create further
+    // duplicate transactions descending from the known pairs either.
+    // If we're on the known chain at height greater than where BIP34 activated, we can save the db accesses needed for the BIP30 check.
+    assert(node->pprev);
+    CBlockIndex *pindexBIP34height = node->pprev->GetAncestor(chainparams.GetConsensus().BIP34Height);
+    //Only continue to enforce if we're below BIP34 activation height or the block hash at that height doesn't correspond.
+    fEnforceBIP30 = fEnforceBIP30 && (!pindexBIP34height || !(pindexBIP34height->GetBlockHash() == chainparams.GetConsensus().BIP34Hash));
+
+    if (fEnforceBIP30) {
+        for (const auto& tx : block.vtx) {
+            for (size_t o = 0; o < tx->vout.size(); o++) {
+                if (view.HaveCoin(COutPoint(tx->GetHash(), o))) {
+                    return state.DoS(100, error("ConnectBlock(): tried to overwrite transaction"),
+                                     REJECT_INVALID, "bad-txns-BIP30");
+                }
+            }
+        }
+    }
+
+    // Start enforcing BIP68 (sequence locks) and BIP112 (CHECKSEQUENCEVERIFY) using versionbits logic.
+    int nLockTimeFlags = 0;
+    if (VersionBitsState(node->pprev, chainparams.GetConsensus(), Consensus::DEPLOYMENT_CSV, versionbitscache) == THRESHOLD_ACTIVE) {
+        nLockTimeFlags |= LOCKTIME_VERIFY_SEQUENCE;
+    }
+
+    // Get the script flags for this block
+    unsigned int flags = GetBlockScriptFlags(node, chainparams.GetConsensus());
+
+    int64_t nTime2 = GetTimeMicros(); nTimeForks += nTime2 - nTime1;
+    LogPrint(BCLog::BENCH, "    - Fork checks: %.2fms [%.2fs (%.2fms/blk)]\n", MILLI * (nTime2 - nTime1), nTimeForks * MICRO, nTimeForks * MILLI / nBlocksTotal);
+
+    CBlockUndo blockundo;
+
+    CCheckQueueControl<CScriptCheck> control(fScriptChecks && nScriptCheckThreads ? &scriptcheckqueue : nullptr);
+
+    std::vector<int> prevheights;
+    CAmount nFees = 0;
+    CAmount nActualStakeReward = 0;
+    int nInputs = 0;
+    int64_t nSigOpsCost = 0;
+    blockundo.vtxundo.reserve(block.vtx.size() - 1);
+
+    ///////////////////////////////////////////////////////// // qtum
+    std::map<dev::Address, std::pair<CHeightTxIndexKey, std::vector<uint256>>> heightIndexes;
+    /////////////////////////////////////////////////////////
+
+    std::vector<PrecomputedTransactionData> txdata;
+    txdata.reserve(block.vtx.size()); // Required so that pointers to individual PrecomputedTransactionData don't get invalidated
+    uint64_t blockGasUsed = 0;
+    CAmount gasRefunds=0;
+
+    uint64_t nValueOut=0;
+    uint64_t nValueIn=0;
+
+    for (unsigned int i = 0; i < block.vtx.size(); i++)
+    {
+        const CTransaction &tx = *(block.vtx[i]);
+
+        nInputs += tx.vin.size();
+
+        if (!tx.IsCoinBase())
+        {
+            CAmount txfee = 0;
+            if (!Consensus::CheckTxInputs(tx, state, view, node->nHeight, txfee)) {
+                return error("%s: Consensus::CheckTxInputs: %s, %s", __func__, tx.GetHash().ToString(), FormatStateMessage(state));
+            }
+            nFees += txfee;
+            if (!MoneyRange(nFees)) {
+                return state.DoS(100, error("%s: accumulated fee in the block out of range.", __func__),
+                                 REJECT_INVALID, "bad-txns-accumulated-fee-outofrange");
+            }
+
+            // Check that transaction is BIP68 final
+            // BIP68 lock checks (as opposed to nLockTime checks) must
+            // be in ConnectBlock because they require the UTXO set
+            prevheights.resize(tx.vin.size());
+            for (size_t j = 0; j < tx.vin.size(); j++) {
+                prevheights[j] = view.AccessCoin(tx.vin[j].prevout).nHeight;
+            }
+
+            if (!SequenceLocks(tx, nLockTimeFlags, &prevheights, *node)) {
+                return state.DoS(100, error("%s: contains a non-BIP68-final transaction", __func__),
+                                 REJECT_INVALID, "bad-txns-nonfinal");
+            }
+        }
+
+        // GetTransactionSigOpCost counts 3 types of sigops:
+        // * legacy (always)
+        // * p2sh (when P2SH enabled in flags and excludes coinbase)
+        // * witness (when witness enabled in flags and excludes coinbase)
+        nSigOpsCost += GetTransactionSigOpCost(tx, view, flags);
+        if (nSigOpsCost > dgpMaxBlockSigOps)
+            return state.DoS(100, error("ConnectBlock(): too many sigops"),
+                             REJECT_INVALID, "bad-blk-sigops");
+
+        txdata.emplace_back(tx);
+
+        bool hasOpSpend = tx.HasOpSpend();
+
+        if (!tx.IsCoinBase())
+        {
+            if (tx.IsCoinStake())
+                nActualStakeReward = tx.GetValueOut()-view.GetValueIn(tx);
+
+            std::vector<CScriptCheck> vChecks;
+            bool fCacheResults = fJustCheck; /* Don't cache results if we're actually connecting blocks (still consult the cache, though) */
+            //note that coinbase and coinstake can not contain any contract opcodes, this is checked in CheckBlock
+            if (!CheckInputs(tx, state, view, fScriptChecks, flags, fCacheResults, fCacheResults, txdata[i], (hasOpSpend || tx.HasCreateOrCall()) ? nullptr : (nScriptCheckThreads ? &vChecks : nullptr)))//nScriptCheckThreads ? &vChecks : nullptr))
+                return error("ConnectBlock(): CheckInputs on %s failed with %s",
+                    tx.GetHash().ToString(), FormatStateMessage(state));
+            control.Add(vChecks);
+
+            for(const CTxIn& j : tx.vin){
+                if(!j.scriptSig.HasOpSpend()){
+                    const CTxOut& prevout = view.AccessCoin(j.prevout).out;
+                    if((prevout.scriptPubKey.HasOpCreate() || prevout.scriptPubKey.HasOpCall())){
+                        return state.DoS(100, error("ConnectBlock(): Contract spend without OP_SPEND in scriptSig"),
+                                REJECT_INVALID, "bad-txns-invalid-contract-spend");
+                    }
+                }
+            }
+        }
+
+        if(tx.IsCoinBase()){
+            nValueOut += tx.GetValueOut();
+        }else{
+            int64_t nTxValueIn = view.GetValueIn(tx);
+            int64_t nTxValueOut = tx.GetValueOut();
+            nValueIn += nTxValueIn;
+            nValueOut += nTxValueOut;
+        }
+
+///////////////////////////////////////////////////////////////////////////////////////// qtum
+        if(!tx.HasOpSpend()){
+            checkBlock.vtx.push_back(block.vtx[i]);
+        }
+        if(tx.HasCreateOrCall() && !hasOpSpend){
+
+            if(!CheckSenderScript(view, tx)){
+                return state.DoS(100, false, REJECT_INVALID, "bad-txns-invalid-sender-script");
+            }
+
+            QtumTxConverter convert(tx, &view, &block.vtx);
+
+            ExtractQtumTX resultConvertQtumTX;
+            if(!convert.extractionQtumTransactions(resultConvertQtumTX)){
+                return state.DoS(100, error("ConnectBlock(): Contract transaction of the wrong format"), REJECT_INVALID, "bad-tx-bad-contract-format");
+            }
+            if(!CheckMinGasPrice(resultConvertQtumTX.second, minGasPrice))
+                return state.DoS(100, error("ConnectBlock(): Contract execution has lower gas price than allowed"), REJECT_INVALID, "bad-tx-low-gas-price");
+
+
+            dev::u256 gasAllTxs = dev::u256(0);
+            ByteCodeExec exec(block, resultConvertQtumTX.first, blockGasLimit);
+            //validate VM version and other ETH params before execution
+            //Reject anything unknown (could be changed later by DGP)
+            //TODO evaluate if this should be relaxed for soft-fork purposes
+            bool nonZeroVersion=false;
+            dev::u256 sumGas = dev::u256(0);
+            CAmount nTxFee = view.GetValueIn(tx)-tx.GetValueOut();
+            for(QtumTransaction& qtx : resultConvertQtumTX.first){
+                sumGas += qtx.gas() * qtx.gasPrice();
+
+                if(sumGas > dev::u256(INT64_MAX)) {
+                    return state.DoS(100, error("ConnectBlock(): Transaction's gas stipend overflows"), REJECT_INVALID, "bad-tx-gas-stipend-overflow");
+                }
+
+                if(sumGas > dev::u256(nTxFee)) {
+                    return state.DoS(100, error("ConnectBlock(): Transaction fee does not cover the gas stipend"), REJECT_INVALID, "bad-txns-fee-notenough");
+                }
+
+                VersionVM v = qtx.getVersion();
+                if(v.format!=0)
+                    return state.DoS(100, error("ConnectBlock(): Contract execution uses unknown version format"), REJECT_INVALID, "bad-tx-version-format");
+                if(v.rootVM != 0){
+                    nonZeroVersion=true;
+                }else{
+                    if(nonZeroVersion){
+                        //If an output is version 0, then do not allow any other versions in the same tx
+                        return state.DoS(100, error("ConnectBlock(): Contract tx has mixed version 0 and non-0 VM executions"), REJECT_INVALID, "bad-tx-mixed-zero-versions");
+                    }
+                }
+                if(!(v.rootVM == 0 || v.rootVM == 1))
+                    return state.DoS(100, error("ConnectBlock(): Contract execution uses unknown root VM"), REJECT_INVALID, "bad-tx-version-rootvm");
+                if(v.vmVersion != 0)
+                    return state.DoS(100, error("ConnectBlock(): Contract execution uses unknown VM version"), REJECT_INVALID, "bad-tx-version-vmversion");
+                if(v.flagOptions != 0)
+                    return state.DoS(100, error("ConnectBlock(): Contract execution uses unknown flag options"), REJECT_INVALID, "bad-tx-version-flags");
+
+                //check gas limit is not less than minimum gas limit (unless it is a no-exec tx)
+                if(qtx.gas() < MINIMUM_GAS_LIMIT && v.rootVM != 0)
+                    return state.DoS(100, error("ConnectBlock(): Contract execution has lower gas limit than allowed"), REJECT_INVALID, "bad-tx-too-little-gas");
+
+                if(qtx.gas() > UINT32_MAX)
+                    return state.DoS(100, error("ConnectBlock(): Contract execution can not specify greater gas limit than can fit in 32-bits"), REJECT_INVALID, "bad-tx-too-much-gas");
+
+                gasAllTxs += qtx.gas();
+                if(gasAllTxs > dev::u256(blockGasLimit))
+                    return state.DoS(1, false, REJECT_INVALID, "bad-txns-gas-exceeds-blockgaslimit");
+
+                //don't allow less than DGP set minimum gas price to prevent MPoS greedy mining/spammers
+                if(v.rootVM!=0 && (uint64_t)qtx.gasPrice() < minGasPrice)
+                    return state.DoS(100, error("ConnectBlock(): Contract execution has lower gas price than allowed"), REJECT_INVALID, "bad-tx-low-gas-price");
+            }
+
+            if(!nonZeroVersion){
+                //if tx is 0 version, then the tx must already have been added by a previous contract execution
+                if(!tx.HasOpSpend()){
+                    return state.DoS(100, error("ConnectBlock(): Version 0 contract executions are not allowed unless created by the AAL "), REJECT_INVALID, "bad-tx-improper-version-0");
+                }
+            }
+
+            if(!exec.performByteCode()){
+                return state.DoS(100, error("ConnectBlock(): Unknown error during contract execution"), REJECT_INVALID, "bad-tx-unknown-error");
+            }
+
+            std::vector<ResultExecute> resultExec(exec.getResult());
+            ByteCodeExecResult bcer;
+            if(!exec.processingResults(bcer)){
+                return state.DoS(100, error("ConnectBlock(): Error processing VM execution results"), REJECT_INVALID, "bad-vm-exec-processing");
+            }
+
+            countCumulativeGasUsed += bcer.usedGas;
+            std::vector<TransactionReceiptInfo> tri;
+            if (fLogEvents && !fJustCheck)
+            {
+                for(size_t k = 0; k < resultConvertQtumTX.first.size(); k ++){
+                    dev::Address key = resultExec[k].execRes.newAddress;
+                    if(!heightIndexes.count(key)){
+                        heightIndexes[key].first = CHeightTxIndexKey(node->nHeight, resultExec[k].execRes.newAddress);
+                    }
+                    heightIndexes[key].second.push_back(tx.GetHash());
+                    tri.push_back(TransactionReceiptInfo{block.GetHash(), uint32_t(node->nHeight), tx.GetHash(), uint32_t(i), resultConvertQtumTX.first[k].from(), resultConvertQtumTX.first[k].to(),
+                                countCumulativeGasUsed, uint64_t(resultExec[k].execRes.gasUsed), resultExec[k].execRes.newAddress, resultExec[k].txRec.log(), resultExec[k].execRes.excepted});
+                }
+
+                pstorageresult->addResult(uintToh256(tx.GetHash()), tri);
+            }
+
+            blockGasUsed += bcer.usedGas;
+            if(blockGasUsed > blockGasLimit){
+                return state.DoS(1000, error("ConnectBlock(): Block exceeds gas limit"), REJECT_INVALID, "bad-blk-gaslimit");
+            }
+            for(CTxOut refundVout : bcer.refundOutputs){
+                gasRefunds += refundVout.nValue;
+            }
+            checkVouts.insert(checkVouts.end(), bcer.refundOutputs.begin(), bcer.refundOutputs.end());
+            for(CTransaction& t : bcer.valueTransfers){
+                checkBlock.vtx.push_back(MakeTransactionRef(std::move(t)));
+            }
+            if(fRecordLogOpcodes && !fJustCheck){
+                writeVMlog(resultExec, tx, block);
+            }
+
+            for(ResultExecute& re: resultExec){
+                if(re.execRes.newAddress != dev::Address() && !fJustCheck)
+                    dev::g_logPost(std::string("Address : " + re.execRes.newAddress.hex()), NULL);
+            }
+        }
+/////////////////////////////////////////////////////////////////////////////////////////
+
+        CTxUndo undoDummy;
+        if (i > 0) {
+            blockundo.vtxundo.push_back(CTxUndo());
+        }
+        UpdateCoins(tx, view, i == 0 ? undoDummy : blockundo.vtxundo.back(), node->nHeight);
+    }
+    int64_t nTime3 = GetTimeMicros(); nTimeConnect += nTime3 - nTime2;
+    LogPrint(BCLog::BENCH, "      - Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin) [%.2fs (%.2fms/blk)]\n", (unsigned)block.vtx.size(), MILLI * (nTime3 - nTime2), MILLI * (nTime3 - nTime2) / block.vtx.size(), nInputs <= 1 ? 0 : MILLI * (nTime3 - nTime2) / (nInputs-1), nTimeConnect * MICRO, nTimeConnect * MILLI / nBlocksTotal);
+
+    if(nFees < gasRefunds) { //make sure it won't overflow
+        return state.DoS(1000, error("ConnectBlock(): Less total fees than gas refund fees"), REJECT_INVALID, "bad-blk-fees-greater-gasrefund");
+    }
+    if(!CheckReward(block, state, node->nHeight, chainparams.GetConsensus(), nFees, gasRefunds, nActualStakeReward, checkVouts))
+        return state.DoS(100,error("ConnectBlock(): Reward check failed"));
+
+    if (!control.Wait())
+        return state.DoS(100, error("%s: CheckQueue failed", __func__), REJECT_INVALID, "block-validation-failed");
+    int64_t nTime4 = GetTimeMicros(); nTimeVerify += nTime4 - nTime2;
+    LogPrint(BCLog::BENCH, "    - Verify %u txins: %.2fms (%.3fms/txin) [%.2fs (%.2fms/blk)]\n", nInputs - 1, MILLI * (nTime4 - nTime2), nInputs <= 1 ? 0 : MILLI * (nTime4 - nTime2) / (nInputs-1), nTimeVerify * MICRO, nTimeVerify * MILLI / nBlocksTotal);
+
+////////////////////////////////////////////////////////////////// // qtum
+    checkBlock.hashMerkleRoot = BlockMerkleRoot(checkBlock);
+    checkBlock.hashStateRoot = h256Touint(globalState->rootHash());
+    checkBlock.hashUTXORoot = h256Touint(globalState->rootHashUTXO());
+
+    //If this error happens, it probably means that something with AAL created transactions didn't match up to what is expected
+    if((checkBlock.GetHash() != block.GetHash()) && !fJustCheck)
+    {
+        LogPrintf("Actual block data does not match block expected by AAL\n");
+        //Something went wrong with AAL, compare different elements and determine what the problem is
+        if(checkBlock.hashMerkleRoot != block.hashMerkleRoot){
+            //there is a mismatched tx, so go through and determine which txs
+            if(block.vtx.size() > checkBlock.vtx.size()){
+                LogPrintf("Unexpected AAL transactions in block. Actual txs: %i, expected txs: %i\n", block.vtx.size(), checkBlock.vtx.size());
+                for(size_t i=0;i<block.vtx.size();i++){
+                    if(i > checkBlock.vtx.size()-1){
+                        LogPrintf("Unexpected transaction: %s\n", block.vtx[i]->ToString());
+                    }else {
+                        if (block.vtx[i]->GetHash() != checkBlock.vtx[i]->GetHash()) {
+                            LogPrintf("Mismatched transaction at entry %i\n", i);
+                            LogPrintf("Actual: %s\n", block.vtx[i]->ToString());
+                            LogPrintf("Expected: %s\n", checkBlock.vtx[i]->ToString());
+                        }
+                    }
+                }
+            }else if(block.vtx.size() < checkBlock.vtx.size()){
+                LogPrintf("Actual block is missing AAL transactions. Actual txs: %i, expected txs: %i\n", block.vtx.size(), checkBlock.vtx.size());
+                for(size_t i=0;i<checkBlock.vtx.size();i++){
+                    if(i > block.vtx.size()-1){
+                        LogPrintf("Missing transaction: %s\n", checkBlock.vtx[i]->ToString());
+                    }else {
+                        if (block.vtx[i]->GetHash() != checkBlock.vtx[i]->GetHash()) {
+                            LogPrintf("Mismatched transaction at entry %i\n", i);
+                            LogPrintf("Actual: %s\n", block.vtx[i]->ToString());
+                            LogPrintf("Expected: %s\n", checkBlock.vtx[i]->ToString());
+                        }
+                    }
+                }
+            }else{
+                //count is correct, but a tx is wrong
+                for(size_t i=0;i<checkBlock.vtx.size();i++){
+                    if (block.vtx[i]->GetHash() != checkBlock.vtx[i]->GetHash()) {
+                        LogPrintf("Mismatched transaction at entry %i\n", i);
+                        LogPrintf("Actual: %s\n", block.vtx[i]->ToString());
+                        LogPrintf("Expected: %s\n", checkBlock.vtx[i]->ToString());
+                    }
+                }
+            }
+        }
+        if(checkBlock.hashUTXORoot != block.hashUTXORoot){
+            LogPrintf("Actual block data does not match hashUTXORoot expected by AAL block\n");
+        }
+        if(checkBlock.hashStateRoot != block.hashStateRoot){
+            LogPrintf("Actual block data does not match hashStateRoot expected by AAL block\n");
+        }
+
+        return state.DoS(100, error("ConnectBlock(): Incorrect AAL transactions or hashes (hashStateRoot, hashUTXORoot)"),
+                         REJECT_INVALID, "incorrect-transactions-or-hashes-block");
+    }
+
+    if (fJustCheck)
+    {
+        dev::h256 prevHashStateRoot(dev::sha3(dev::rlp("")));
+        dev::h256 prevHashUTXORoot(dev::sha3(dev::rlp("")));
+        if(node->pprev->hashStateRoot != uint256() && node->pprev->hashUTXORoot != uint256()){
+            prevHashStateRoot = uintToh256(node->pprev->hashStateRoot);
+            prevHashUTXORoot = uintToh256(node->pprev->hashUTXORoot);
+        }
+        globalState->setRoot(prevHashStateRoot);
+        globalState->setRootUTXO(prevHashUTXORoot);
+        return true;
+    }
+//////////////////////////////////////////////////////////////////
+
+    node->nMoneySupply = (node->pprev? node->pprev->nMoneySupply : 0) + nValueOut - nValueIn;
+    //only start checking this error after block 5000 and only on testnet and mainnet, not regtest
+    if(node->nHeight > 5000 && !Params().GetConsensus().fPoSNoRetargeting) {
+        //sanity check in case an exploit happens that allows new coins to be minted
+        if(node->nMoneySupply > (uint64_t)(100000000 + ((node->nHeight - 5000) * 4)) * COIN){
+            return state.DoS(100, error("ConnectBlock(): Unknown error caused actual money supply to exceed expected money supply"),
+                             REJECT_INVALID, "incorrect-money-supply");
+        }
+    }
+
+    if (!WriteUndoDataForBlock(blockundo, state, node, chainparams))
+        return false;
+
+    if (!node->IsValid(BLOCK_VALID_SCRIPTS)) {
+    	node->RaiseValidity(BLOCK_VALID_SCRIPTS);
+        setDirtyBlockIndex.insert(node);
+    }
+
+    if (fLogEvents)
+    {
+        for (const auto& e: heightIndexes)
+        {
+            if (!pblocktree->WriteHeightIndex(e.second.first, e.second.second))
+                return AbortNode(state, "Failed to write height index");
+        }
+    }
+    if(block.IsProofOfStake()){
+        // Read the public key from the second output
+        std::vector<unsigned char> vchPubKey;
+        if(GetBlockPublicKey(block, vchPubKey))
+        {
+            uint160 pkh = uint160(ToByteVector(CPubKey(vchPubKey).GetID()));
+            pblocktree->WriteStakeIndex(node->nHeight, pkh);
+        }else{
+            pblocktree->WriteStakeIndex(node->nHeight, uint160());
+        }
+    }else{
+        pblocktree->WriteStakeIndex(node->nHeight, uint160());
+    }
+
+    if (!WriteTxIndexDataForBlock(block, state, node))
+        return false;
+
+    assert(node->phashBlock);
+    // add this block to the view's block chain
+    view.SetBestBlock(node->GetBlockHash());
 
     int64_t nTime5 = GetTimeMicros(); nTimeIndex += nTime5 - nTime4;
     LogPrint(BCLog::BENCH, "    - Index writing: %.2fms [%.2fs (%.2fms/blk)]\n", MILLI * (nTime5 - nTime4), nTimeIndex * MICRO, nTimeIndex * MILLI / nBlocksTotal);
@@ -4096,10 +4650,10 @@ static bool CheckBlockHeader(const CBlockHeader& block, CValidationState& state,
     if (fCheckPOW && block.IsProofOfWork() && !CheckHeaderPoW(block, consensusParams))
         return state.DoS(50, false, REJECT_INVALID, "high-hash", false, "proof of work failed");
 
-//    // Check proof of stake matches claimed amount
-//    if (fCheckPOS && block.IsProofOfStake() && !CheckHeaderPoS(block, consensusParams))
-//        // May occur if behind on block chain sync
-//        return state.DoS(1, false, REJECT_INVALID, "bad-cb-header", false, "proof of stake failed");
+    // Check proof of stake matches claimed amount
+    if (fCheckPOS && block.IsProofOfStake() && !CheckHeaderPoS(block, consensusParams))
+        // May occur if behind on block chain sync
+        return state.DoS(1, false, REJECT_INVALID, "bad-cb-header", false, "proof of stake failed");
 
     return true;
 }
@@ -4439,6 +4993,42 @@ bool CChainState::UpdateHashProof(const CBlock& block, CValidationState& state, 
     
     // Record proof hash value
     pindex->hashProof = hashProof;
+    return true;
+}
+
+bool CChainState::UpdateHashProofMock(const CBlock& block, CValidationState& state, const Consensus::Params& consensusParams, CBlockIndex* node, CCoinsViewCache& view)
+{
+    int nHeight = node->nHeight;
+    uint256 hash = block.GetHash();
+
+//    // Check coinstake timestamp
+//    if (block.IsProofOfStake() && !CheckCoinStakeTimestamp(block.GetBlockTime()))
+//        return state.DoS(50, error("UpdateHashProof() : coinstake timestamp violation nTimeBlock=%d", block.GetBlockTime()));
+
+    // Check proof-of-work or proof-of-stake
+    if (block.nBits != GetNextWorkRequired(node->pprev, &block, consensusParams,block.IsProofOfStake())) // TODO modify, ypf
+        return state.DoS(100, error("UpdateHashProof() : incorrect %s", block.IsProofOfWork() ? "proof-of-work" : "proof-of-stake"));
+
+    int64_t sBits;
+    estimateNextStakeDifficulty(consensusParams, node, sBits);
+    block.sBits = sBits;
+    node->sBits = sBits;
+
+    uint256 hashProof;
+    // Verify hash target and signature of coinstake tx, TODO ssgen check, ypf
+    if (block.IsProofOfStake())
+    {
+        uint256 targetProofOfStake;
+        if (!CheckProofOfStake(node->pprev, state, *block.vtx[1], block.nBits, block.nTime, hashProof, targetProofOfStake, view))
+        {
+            return error("UpdateHashProof() : check proof-of-stake failed for block %s", hash.ToString());
+        }
+    }
+
+    hashProof = block.GetHash();
+
+    // Record proof hash value
+    node->hashProof = hashProof;
     return true;
 }
 

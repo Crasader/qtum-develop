@@ -37,6 +37,17 @@ public:
     COutPoint prevoutStake;
     std::vector<unsigned char> vchBlockSig;
 
+    //////////////////////////////////////////////////////////////// decred
+    // Number of participating voters for this block.
+    uint16_t Voters;
+    // Number of new sstx in this block.
+    uint8_t FreshStake;
+    // Number of ssrtx present in this block.
+    uint8_t Revocations;
+    uint32_t PoolSize;
+    int64_t sBits;
+    ////////////////////////////////////////////////////////////////
+
     CBlockHeader()
     {
         SetNull();
@@ -135,6 +146,12 @@ class CBlock : public CBlockHeader
 public:
     // network and disk
     std::vector<CTransactionRef> vtx;
+
+    //////////////////////////////////////////////////////////////// decred
+    std::vector<CTransactionRef> svtx;
+
+    ////////////////////////////////////////////////////////////////
+
 
     // memory only
     mutable bool fChecked;

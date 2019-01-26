@@ -127,6 +127,13 @@ enum OutputType : int
 extern OutputType g_address_type;
 extern OutputType g_change_type;
 
+/**
+ * Used to keep track of spent outpoints, and
+ * detect and report conflicts (double-spends or
+ * mutated transactions where the mutant gets mined).
+ */
+typedef std::multimap<COutPoint, uint256> TxSpends;
+
 
 /** A key pool entry */
 class CKeyPool
@@ -715,12 +722,6 @@ private:
     int64_t nLastResend;
     bool fBroadcastTransactions;
 
-    /**
-     * Used to keep track of spent outpoints, and
-     * detect and report conflicts (double-spends or
-     * mutated transactions where the mutant gets mined).
-     */
-    typedef std::multimap<COutPoint, uint256> TxSpends;
     TxSpends mapTxSpends;
     void AddToSpends(const COutPoint& outpoint, const uint256& wtxid);
     void RemoveFromSpends(const COutPoint& outpoint, const uint256& wtxid);
