@@ -70,7 +70,7 @@ struct ExecutionResult
 {
 	u256 gasUsed = 0;
 	TransactionException excepted = TransactionException::Unknown;
-	Address newAddress;
+	Address newAddress;												///< Contract address
 	bytes output;
 	CodeDeposit codeDeposit = CodeDeposit::None;					///< Failed if an attempted deposit failed due to lack of gas.
 	u256 gasRefunded = 0;

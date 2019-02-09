@@ -157,6 +157,9 @@ static const int64_t DEFAULT_MAX_TIP_AGE = 30 * 24 * 60 * 60; //bitcoin value is
 /** Maximum age of our tip in seconds for us to be considered current for fee estimation */
 static const int64_t MAX_FEE_ESTIMATION_TIP_AGE = 3 * 60 * 60;
 
+// Describes whether TxTreeRegular is valid
+static const uint16_t BlockValid = 1 << 0;
+
 /** Default for -permitbaremultisig */
 static const bool DEFAULT_PERMIT_BAREMULTISIG = true;
 static const bool DEFAULT_CHECKPOINTS_ENABLED = true;
@@ -524,6 +527,7 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
 bool GetBlockPublicKey(const CBlock& block, std::vector<unsigned char>& vchPubKey);
 bool SignBlock(std::shared_ptr<CBlock> pblock, CWallet& wallet, const CAmount& nTotalFees, uint32_t nTime);
 bool CheckCanonicalBlockSignature(const CBlockHeader* pblock);
+bool CheckProofOfStake(const CBlock& block, const Consensus::Params& consensusParams);
 
 /** Check a block is completely valid from start to finish (only works on top of our current best block, with cs_main held) */
 bool TestBlockValidity(CValidationState& state, const CChainParams& chainparams, const CBlock& block, CBlockIndex* pindexPrev, bool fCheckPOW = true, bool fCheckMerkleRoot = true);
@@ -623,6 +627,18 @@ bool DumpMempool();
 bool LoadMempool();
 
 bool CheckReward(const CBlock& block, CValidationState& state, int nHeight, const Consensus::Params& consensusParams, CAmount nFees, CAmount gasRefunds, CAmount nActualStakeReward, const std::vector<CTxOut>& vouts);
+
+//////////////////////////////////////////////////////////////// decred
+// countSpentOutputs returns the number of utxos the passed block spends.
+uint64_t countSpentOutputs(CBlock& block, CBlock& parent);
+
+
+// approvesParent returns whether or not the vote bits in the passed header
+// indicate the regular transaction tree of the parent block should be
+// considered valid.
+bool headerApprovesParent(const CBlockHeader& header);
+////////////////////////////////////////////////////////////////
+
 
 //////////////////////////////////////////////////////// qtum
 std::vector<ResultExecute> CallContract(const dev::Address& addrContract, std::vector<unsigned char> opcode, const dev::Address& sender = dev::Address(), uint64_t gasLimit=0);

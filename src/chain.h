@@ -141,6 +141,31 @@ struct CDiskBlockPos
 
 };
 
+// BestState houses information about the current best block and other info
+// related to the state of the main chain as it exists from the point of view of
+// the current best block.
+//
+// The BestSnapshot method can be used to obtain access to this information
+// in a concurrent safe manner and the data will not be changed out from under
+// the caller when chain state changes occur as the function name implies.
+// However, the returned snapshot must be treated as immutable since it is
+// shared by all callers.
+class BestState{
+	uint256 hash;								// The hash of the block.
+	uint256 prehash;							// The previous block hash.
+	uint32_t nbits;								// The pow difficulty bits of the block.
+	uint32_t nextpoolsize;						// The next ticket pool size.
+	int64_t nextStakeDiff;						// The next stake difficulty.
+	uint64_t blocksize;							// The size of the block.
+	uint64_t numtxns;							// The number of txns in the block.
+	uint64_t totaltxns;							// The total number of txns in the chain.
+//	median time
+	int64_t totalsubsidy;						// The total subsidy for the chain.
+	std::vector<uint256> nextwinningtickets;	// The eligible tickets to vote on the next block.
+	std::vector<uint256> missedtickets;			// The missed tickets set to be revoked.
+	unsigned char nextfinalstate[6];			// The calculated state of the lottery for the next block.
+};
+
 enum BlockStatus: uint32_t {
     //! Unused.
     BLOCK_VALID_UNKNOWN      =    0,
@@ -558,6 +583,24 @@ class CChain {
 private:
     std::vector<CBlockIndex*> vChain;
 
+    //////////////////////////////////////////////////////////////// decred
+    std::vector<CBlockIndex*> modified;
+
+	// The state is used as a fairly efficient way to cache information
+	// about the current best chain state that is returned to callers when
+	// requested.  It operates on the principle of MVCC such that any time a
+	// new block becomes the best block, the state pointer is replaced with
+	// a new struct and the old state is left untouched.  In this way,
+	// multiple callers can be pointing to different best chain states.
+	// This is acceptable for most callers because the state is only being
+	// queried at a specific point in time.
+	//
+	// In addition, some of the fields are stored in the database so the
+	// chain state can be quickly reconstructed on load.
+//    std::mutex stateLock;
+    BestState stateSnapshot;
+    ////////////////////////////////////////////////////////////////
+
 public:
     /** Returns the index entry for the genesis block of this chain, or nullptr if none. */
     CBlockIndex *Genesis() const {
@@ -611,6 +654,13 @@ public:
 
     /** Find the earliest block with timestamp equal or greater than the given. */
     CBlockIndex* FindEarliestAtLeast(int64_t nTime) const;
+
+    //////////////////////////////////////////////////////////////// decred
+    // flushBlockIndex populates any ticket data that has been pruned from modified
+    // block nodes, writes those nodes to the database and clears the set of
+    // modified nodes if it succeeds.
+    bool flushBlockIndex();
+    ////////////////////////////////////////////////////////////////
 
 };
 

@@ -40,12 +40,21 @@ public:
     //////////////////////////////////////////////////////////////// decred
     // Number of participating voters for this block.
     uint16_t Voters;
+
     // Number of new sstx in this block.
     uint8_t FreshStake;
+
     // Number of ssrtx present in this block.
     uint8_t Revocations;
+
+    // Size of the ticket pool.
     uint32_t PoolSize;
+
+    // Stake difficulty target.
     int64_t sBits;
+
+    // Votes on the previous merkleroot and yet undecided parameters.
+    uint16_t nVoteBits;
     ////////////////////////////////////////////////////////////////
 
     CBlockHeader()

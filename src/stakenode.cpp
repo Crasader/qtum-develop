@@ -76,8 +76,9 @@ bool maybeFetchTicketInfo(const Consensus::Params& consensusParams, CBlockIndex*
 	return true;
 }
 
-bool fetchStakeNode(const Consensus::Params& consensusParams, CBlockIndex* node, std::shared_ptr<TicketNode> stakeNode, CValidationStakeState& state){
+bool fetchStakeNode(const Consensus::Params& consensusParams, CBlockIndex* node, std::shared_ptr<TicketNode> stakeNode){
 	TicketNode tempNode;
+	CValidationStakeState state;
 
 	// Return the cached immutable stake node when it is already loaded.
 	if(node->stakeNode != nullptr){
@@ -140,7 +141,7 @@ bool fetchStakeNode(const Consensus::Params& consensusParams, CBlockIndex* node,
 			if(!disconnectNode(*n->stakeNode, prev->lotteryIV(), nilUndo, nilparTicket, tempNode)){
 				return state.Invalid(false, REJECT_INVALID, "stx-node", strprintf("%s: disconnectNode failed", __func__));
 			}
-			prev->stakeNode = &tempNode;
+			prev->stakeNode.reset(&tempNode);
 		}
 
 		// Nothing more to do if the requested node is the fork point itself.
@@ -177,7 +178,7 @@ bool fetchStakeNode(const Consensus::Params& consensusParams, CBlockIndex* node,
 			if(!connectNode(*(idx->pprev->stakeNode), idx->lotteryIV(), idx->ticketsVoted, idx->ticketsRevoked, idx->newTickets, tempNode)){
 				return state.Invalid(false, REJECT_INVALID, "stx-node", strprintf("%s: second connectNode failed", __func__));
 			}
-			idx->stakeNode = &tempNode;
+			idx->stakeNode.reset(&tempNode);
 		}
 	}
 	stakeNode = node->stakeNode;

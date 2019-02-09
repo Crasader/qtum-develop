@@ -30,6 +30,7 @@
 #include <script/sigcache.h>
 #include <script/standard.h>
 #include <stake/ticketdb/chainio.h>
+#include <stake/staketx.h>
 #include <stakenode.h>
 #include <timedata.h>
 #include <tinyformat.h>
@@ -2168,6 +2169,34 @@ bool CheckReward(const CBlock& block, CValidationState& state, int nHeight, cons
     return true;
 }
 
+uint64_t countSpentOutputs(CBlock& block, CBlock& parent){
+	// We need to skip the regular tx tree if it's not valid.
+	// We also exclude the coinbase transaction since it can't
+	// spend anything.
+	CValidationStakeState state;
+	uint64_t numSpent = 0;
+
+	if(headerApprovesParent(block.GetBlockHeader())){
+		for(size_t num = 1; num < parent.vtx.size(); num++){
+			numSpent += parent.vtx[num]->vin.size();
+		}
+	}
+	for(auto stx : block.svtx){
+		TxType txType = DetermineTxType(*stx, state);
+		if(txType == TxTypeSSGen || txType == TxTypeSSRtx){
+			numSpent++;
+			continue;
+		}
+		numSpent += stx->vin.size();
+	}
+
+	return numSpent;
+}
+
+bool headerApprovesParent(const CBlockHeader& header){
+	return header.nVoteBits & BlockValid;
+}
+
 valtype GetSenderAddress(const CTransaction& tx, const CCoinsViewCache* coinsView, const std::vector<CTransactionRef>* blockTxs){
     CScript script;
     bool scriptFilled=false; //can't use script.empty() because an empty script is technically valid
@@ -3089,16 +3118,6 @@ bool CChainState::connectBlockMock(CValidationState& state, CBlockIndex* node, c
     }
     nBlocksTotal++;
 
-    //////////////////////////////////////////////////////////////// decred
-    std::shared_ptr<TicketNode> stakeNode;
-    fetchStakeNode(chainparams.GetConsensus(), node, stakeNode);
-
-    // Insert the block into the stake database.
-    if(WriteConnectedBestNode(*stakeNode, *node->phashBlock)){
-    	return false;
-    }
-    ////////////////////////////////////////////////////////////////
-
     bool fScriptChecks = true;
     if (!hashAssumeValid.IsNull()) {
         // We've been configured with the hash of a block which has been externally verified to have a valid history.
@@ -3191,6 +3210,30 @@ bool CChainState::connectBlockMock(CValidationState& state, CBlockIndex* node, c
     std::map<dev::Address, std::pair<CHeightTxIndexKey, std::vector<uint256>>> heightIndexes;
     /////////////////////////////////////////////////////////
 
+    //////////////////////////////////////////////////////////////// decred
+
+    // Sanity check the correct number of stxos are provided.
+    if(stxos.size() != countSpentOutputs(const_cast<CBlock&>(block), parent)){
+    	return error("provided %v stxos for block %v (height %v), but counted %v spent utxos", stxos.size(),
+    			node->phashBlock, node->nHeight, countSpentOutputs(const_cast<CBlock&>(block), parent));
+    }
+
+    if(chainActive.flushBlockIndex()){
+    	return error("%s: flushBlockIndex flush modeify node failed", __func__);
+    }
+
+    std::shared_ptr<TicketNode> stakeNode;
+    fetchStakeNode(chainparams.GetConsensus(), node, stakeNode);
+
+    int64_t curStakeDiff;
+    estimateNextStakeDifficultyV2(chainparams.GetConsensus(), node->pprev, curStakeDiff);
+
+    // Insert the block into the stake database.
+    if(WriteConnectedBestNode(*stakeNode, *node->phashBlock)){
+    	return error("%s: WriteConnectedBestNode update current ticketnode state failed", __func__);
+    }
+    ////////////////////////////////////////////////////////////////
+
     std::vector<PrecomputedTransactionData> txdata;
     txdata.reserve(block.vtx.size()); // Required so that pointers to individual PrecomputedTransactionData don't get invalidated
     uint64_t blockGasUsed = 0;
@@ -3244,7 +3287,7 @@ bool CChainState::connectBlockMock(CValidationState& state, CBlockIndex* node, c
 
         bool hasOpSpend = tx.HasOpSpend();
 
-        if (!tx.IsCoinBase())
+        if (!tx.IsCoinBase())	// TODO modify, ypf
         {
             if (tx.IsCoinStake())
                 nActualStakeReward = tx.GetValueOut()-view.GetValueIn(tx);
@@ -3257,15 +3300,6 @@ bool CChainState::connectBlockMock(CValidationState& state, CBlockIndex* node, c
                     tx.GetHash().ToString(), FormatStateMessage(state));
             control.Add(vChecks);
 
-            for(const CTxIn& j : tx.vin){
-                if(!j.scriptSig.HasOpSpend()){
-                    const CTxOut& prevout = view.AccessCoin(j.prevout).out;
-                    if((prevout.scriptPubKey.HasOpCreate() || prevout.scriptPubKey.HasOpCall())){
-                        return state.DoS(100, error("ConnectBlock(): Contract spend without OP_SPEND in scriptSig"),
-                                REJECT_INVALID, "bad-txns-invalid-contract-spend");
-                    }
-                }
-            }
         }
 
         if(tx.IsCoinBase()){
@@ -3283,6 +3317,7 @@ bool CChainState::connectBlockMock(CValidationState& state, CBlockIndex* node, c
         }
         if(tx.HasCreateOrCall() && !hasOpSpend){
 
+        	// sender script must be a p2pubkeyhash or p2pubkey
             if(!CheckSenderScript(view, tx)){
                 return state.DoS(100, false, REJECT_INVALID, "bad-txns-invalid-sender-script");
             }
@@ -3529,7 +3564,7 @@ bool CChainState::connectBlockMock(CValidationState& state, CBlockIndex* node, c
     if(block.IsProofOfStake()){
         // Read the public key from the second output
         std::vector<unsigned char> vchPubKey;
-        if(GetBlockPublicKey(block, vchPubKey))
+        if(GetBlockPublicKey(block, vchPubKey))	// coinstake's vout[1]'s scriptPubKey' pubkey
         {
             uint160 pkh = uint160(ToByteVector(CPubKey(vchPubKey).GetID()));
             pblocktree->WriteStakeIndex(node->nHeight, pkh);
@@ -4998,7 +5033,7 @@ bool CChainState::UpdateHashProof(const CBlock& block, CValidationState& state, 
 
 bool CChainState::UpdateHashProofMock(const CBlock& block, CValidationState& state, const Consensus::Params& consensusParams, CBlockIndex* node, CCoinsViewCache& view)
 {
-    int nHeight = node->nHeight;
+//    int nHeight = node->nHeight;
     uint256 hash = block.GetHash();
 
 //    // Check coinstake timestamp
@@ -5010,8 +5045,7 @@ bool CChainState::UpdateHashProofMock(const CBlock& block, CValidationState& sta
         return state.DoS(100, error("UpdateHashProof() : incorrect %s", block.IsProofOfWork() ? "proof-of-work" : "proof-of-stake"));
 
     int64_t sBits;
-    estimateNextStakeDifficulty(consensusParams, node, sBits);
-    block.sBits = sBits;
+    estimateNextStakeDifficultyV2(consensusParams, node, sBits);
     node->sBits = sBits;
 
     uint256 hashProof;
@@ -5342,6 +5376,30 @@ bool CheckCanonicalBlockSignature(const CBlockHeader* pblock)
     if(ret) ret = IsCanonicalBlockSignature(pblock, true);
 
     return ret;
+}
+
+bool CheckProofOfStake(const CBlock& block, const Consensus::Params& consensusParams){
+    // check ticketprice
+    CValidationStakeState stakeState;
+
+    for(size_t num = 0; num < block.svtx.size(); num++){
+    	const CTransaction &stx = *(block.svtx[num]);
+
+    	if(IsSStx(stx, stakeState)){
+    		CAmount commitValue = stx.vout[0].nValue;
+
+        	// Check for underflow block sbits.
+        	if(commitValue < block.sBits){
+        		return error("%s: Stake tx %s has a commitment value less than the minimum stake difficulty specified in the block (%d)", __func__, stx.GetHash().GetHex(), block.sBits);
+        	}
+
+        	if(commitValue < consensusParams.MinimumStakeDiff){
+        		return error("%s: Stake tx %s has a commitment value less than the minimum stake difficulty for the network (%d)", __func__, stx.GetHash().GetHex(), consensusParams.MinimumStakeDiff);
+        	}
+
+    	}
+    }
+    return true;
 }
 
 bool ProcessNewBlock(const CChainParams& chainparams, const std::shared_ptr<const CBlock> pblock, bool fForceProcessing, bool *fNewBlock)

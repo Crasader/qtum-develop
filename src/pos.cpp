@@ -349,7 +349,7 @@ bool estimateNextStakeDifficulty(const Consensus::Params& consensusParams, const
 	return true;
 }
 
-bool estimateNextStakeDifficulty(const Consensus::Params& consensusParams, const CBlockIndex* curNode, int64_t& sBits){
+bool estimateNextStakeDifficultyV2(const Consensus::Params& consensusParams, const CBlockIndex* curNode, int64_t& sBits){
 	// Stake difficulty before any tickets could possibly be purchased is
 	// the minimum value.
 	int64_t nextHeight = 0;

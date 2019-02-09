@@ -156,6 +156,15 @@ const valtype validSSGenReferenceOutPrefix(0x6a, 0x24);
 // 0x?? 0x?? (VoteBits) ... 0x??
 const valtype validSSGenVoteOutMinPrefix(0x6a, 0x02);
 
+// Possible TxTypes.  Statically declare these so that they might be used in
+// consensus code.
+enum TxType : uint16_t {
+	TxTypeRegular,
+	TxTypeSStx,
+	TxTypeSSGen,
+	TxTypeSSRtx
+};
+
 /** Capture information about block/transaction validation */
 class CValidationStakeState {
 private:
@@ -261,5 +270,16 @@ bool CheckSSRtx(const CTransaction& tx, CValidationStakeState &state);
 
 bool FindSpentTicketsInBlock(const CBlock& block, SpentTicketsInBlock& ticketinfo, CValidationStakeState& state);
 
-
+TxType DetermineTxType(const CTransaction& tx, CValidationStakeState& state){
+	if(IsSStx(tx, state)){
+		return TxTypeSStx;
+	}
+	if(IsSSGen(tx, state)){
+		return TxTypeSSGen;
+	}
+	if(IsSSRtx(tx, state)){
+		return TxTypeSSRtx;
+	}
+	return TxTypeRegular;
+}
 #endif //BITCOIN_STAKE_STAKETX_H

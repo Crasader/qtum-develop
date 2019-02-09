@@ -63,7 +63,7 @@ bool estimateNextStakeDifficulty(const Consensus::Params& consensusParams, const
 // defined in DCP0001.
 //
 // This function MUST be called with the chain state lock held (for writes).
-bool estimateNextStakeDifficulty(const Consensus::Params& consensusParams, const CBlockIndex* curNode, int64_t& sBits);
+bool estimateNextStakeDifficultyV2(const Consensus::Params& consensusParams, const CBlockIndex* curNode, int64_t& sBits);
 
 // calcNextStakeDiff calculates the next stake difficulty for the given set
 // of parameters using the algorithm defined in DCP0001.

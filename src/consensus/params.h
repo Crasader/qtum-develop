@@ -88,14 +88,14 @@ struct Params {
 
     ///////////////////////////////////////////////////////////////// decred
 
-	// MinimumStakeDiff if the minimum amount of Atoms required to purchase a
-	// stake ticket.
-    int64_t MinimumStakeDiff;
-
 	// MaxStakeDiff if the max amount of Atoms required to purchase a
 	// stake ticket. Added by ypf, not in dcrd.
     // MaxStakeDiff = the sum of pre-mine div  TicketPoolSize.
     int64_t MaxStakeDiff;
+
+	// MinimumStakeDiff if the minimum amount of Atoms required to purchase a
+	// stake ticket.
+    int64_t MinimumStakeDiff;
 
 	// Ticket pool sizes for Decred PoS. This denotes the number of possible
 	// buckets/number of different ticket numbers. It is also the number of

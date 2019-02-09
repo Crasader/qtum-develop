@@ -4,6 +4,8 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <chain.h>
+#include <stakenode.h>
+#include <chainparams.h>
 
 /**
  * CChain implementation
@@ -80,6 +82,22 @@ CBlockIndex* CChain::FindEarliestAtLeast(int64_t nTime) const
     std::vector<CBlockIndex*>::const_iterator lower = std::lower_bound(vChain.begin(), vChain.end(), nTime,
         [](CBlockIndex* pBlock, const int64_t& time) -> bool { return pBlock->GetBlockTimeMax() < time; });
     return (lower == vChain.end() ? nullptr : *lower);
+}
+
+bool CChain::flushBlockIndex(){
+	CValidationStakeState state;
+	for(auto node : modified){
+		if(maybeFetchTicketInfo(Params().GetConsensus(), node, state)){
+			return error("%s: maybeFetchTicketInfo update CBlockIndex info failed", __func__);
+		}
+		if(Contains(static_cast<CBlockIndex*>(node))){
+			continue;
+		} else {
+			vChain[node->nHeight] = node;	// TODO: temp do modify in here. prepare to delete it, ypf
+		}
+	}
+
+	return true;
 }
 
 /** Turn the lowest '1' bit in the binary representation of a number into a '0'. */
