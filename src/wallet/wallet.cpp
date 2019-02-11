@@ -3430,16 +3430,33 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CWalletT
 }
 
 bool CWallet::CreateTicketPurchaseTx(CWalletTx& wtxNew, CAmount& ticketPrice, CAmount& nFeeRet, std::string& strFailReason,
-    						const CCoinControl& coin_control, bool hasSender)
+    						const CCoinControl& coin_control, bool sign, bool hasSender)
 {
 	CAmount nValue = ticketPrice;
 	COutPoint senderInput;
+	uint160 addrTrue;
     if(hasSender && coin_control.HasSelected()){
     	std::vector<COutPoint> vSenderInputs;
     	coin_control.ListSelected(vSenderInputs);
     	senderInput=vSenderInputs[0];
     }
-
+    auto it = mapWallet.find(senderInput.hash);
+    if(it != mapWallet.end()){
+    	const CScript senderScript = it->second.tx->vout[senderInput.n].scriptPubKey;
+        std::vector<valtype> vSolutions;
+        txnouttype whichType;
+        if (!Solver(senderScript, whichType, vSolutions)){
+        	return error("%s: solver the vout(txid: %s, n: %d) failed", __func__, senderInput.hash.GetHex(), senderInput.n);
+        }
+        if(whichType == TX_PUBKEYHASH){
+            // convert to pay to public key type
+            addrTrue.write(reinterpret_cast<const char*>(vSolutions[0].data()));
+        } else {
+        	return error("%s: other format not support, will fix it further", __func__);
+        }
+    } else {
+    	return error("%s: utxo(txid: %s, n: %d) not in this wallet", __func__, senderInput.hash.GetHex(), senderInput.n);
+    }
     wtxNew.fTimeReceivedIsTxTime = true;
     wtxNew.BindWallet(this);
     CMutableTransaction txNew;
@@ -3474,12 +3491,12 @@ bool CWallet::CreateTicketPurchaseTx(CWalletTx& wtxNew, CAmount& ticketPrice, CA
 				CAmount nValueToSelect = nValue;
 				CAmount voteFeeLimit = 0;	// add for PurchaseCommitmentScript
 				nValueToSelect += nFeeRet;		// default subtract fee from amount
-				CScript pkScript = PayToSStx(p2shOpTrueAddr);
+				CScript pkScript = PayToSStx(addrTrue);
 				CTxOut txoutpk(ticketPrice, pkScript);
 
 				txNew.vout.push_back(txoutpk);
 
-				CScript commitScript = PurchaseCommitmentScript(p2shOpTrueAddr, nValueToSelect, voteFeeLimit, ticketPrice);
+				CScript commitScript = PurchaseCommitmentScript(addrTrue, nValueToSelect, voteFeeLimit, ticketPrice);
 				CTxOut txoutct(0, commitScript);
 
 				txNew.vout.push_back(txoutct);
@@ -3497,7 +3514,7 @@ bool CWallet::CreateTicketPurchaseTx(CWalletTx& wtxNew, CAmount& ticketPrice, CA
 
 				const CAmount nChange = nValueIn - nValueToSelect;
 
-				CScript changeScript = PayToSStxChange(p2shOpTrueAddr);
+				CScript changeScript = PayToSStxChange(addrTrue);
 				CTxOut txoutcg(nChange, changeScript);
 
 				txNew.vout.push_back(txoutcg);
@@ -3561,6 +3578,27 @@ bool CWallet::CreateTicketPurchaseTx(CWalletTx& wtxNew, CAmount& ticketPrice, CA
                 // Include more fee and try again.
                 nFeeRet = nFeeNeeded;
                 continue;
+            }
+
+            if (sign)
+            {
+                CTransaction txNewConst(txNew);
+                int nIn = 0;
+                for (const auto& coin : vCoins)
+                {
+                    const CScript& scriptPubKey = coin.txout.scriptPubKey;
+                    SignatureData sigdata;
+
+                    if (!ProduceSignature(TransactionSignatureCreator(this, &txNewConst, nIn, coin.txout.nValue, SIGHASH_ALL), scriptPubKey, sigdata))
+                    {
+                        strFailReason = _("Signing transaction failed");
+                        return false;
+                    } else {
+                        UpdateTransaction(txNew, nIn, sigdata);
+                    }
+
+                    nIn++;
+                }
             }
 
             // Embed the constructed transaction data in wtxNew.

@@ -632,11 +632,27 @@ bool CheckReward(const CBlock& block, CValidationState& state, int nHeight, cons
 // countSpentOutputs returns the number of utxos the passed block spends.
 uint64_t countSpentOutputs(CBlock& block, CBlock& parent);
 
+// countNumberOfTransactions returns the number of transactions inserted by
+// adding the block.
+uint64_t countNumberOfTransactions(CBlock& block, CBlock& parent);
+
+// CalculateAddedSubsidy calculates the amount of subsidy added by a block
+// and its parent. The blocks passed to this function MUST be valid blocks
+// that have already been confirmed to abide by the consensus rules of the
+// network, or the function might panic.
+int64_t CalculateAddedSubsidy(CBlock& block, CBlock& parent, CCoinsViewCache& view);
 
 // approvesParent returns whether or not the vote bits in the passed header
 // indicate the regular transaction tree of the parent block should be
 // considered valid.
 bool headerApprovesParent(const CBlockHeader& header);
+
+// newBestState returns a new best stats instance for the given parameters.
+bool newBestState(CBlockIndex* node, uint64_t blockSize, uint64_t numTxns, uint64_t totalTxns,
+		int64_t medianTime, int64_t totalSubsidy, uint32_t nextPoolSize,
+		int64_t nextStakeDiff, std::vector<uint256> nextWinners, std::vector<uint256> missed,
+		unsigned char* nextFinalState);
+
 ////////////////////////////////////////////////////////////////
 
 

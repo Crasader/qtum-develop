@@ -1041,7 +1041,7 @@ public:
     // - Second output is an OP_RETURN followed by the commitment script
     // - Third output is an OP_SSTXCHANGE followed by the OP_TRUE p2sh script hash
     bool CreateTicketPurchaseTx(CWalletTx& wtxNew, CAmount& ticketPrice, CAmount& nFeeRet, std::string& strFailReason,
-        						const CCoinControl& coin_control, bool hasSender=false);
+        						const CCoinControl& coin_control, bool sign=true, bool hasSender=false);
 
     // CreateVoteTx returns a new transaction (ssgen) paying an appropriate subsidy
     // for the given block height (and the number of votes per block) as well as the

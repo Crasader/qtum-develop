@@ -270,16 +270,5 @@ bool CheckSSRtx(const CTransaction& tx, CValidationStakeState &state);
 
 bool FindSpentTicketsInBlock(const CBlock& block, SpentTicketsInBlock& ticketinfo, CValidationStakeState& state);
 
-TxType DetermineTxType(const CTransaction& tx, CValidationStakeState& state){
-	if(IsSStx(tx, state)){
-		return TxTypeSStx;
-	}
-	if(IsSSGen(tx, state)){
-		return TxTypeSSGen;
-	}
-	if(IsSSRtx(tx, state)){
-		return TxTypeSSRtx;
-	}
-	return TxTypeRegular;
-}
+TxType DetermineTxType(const CTransaction& tx, CValidationStakeState& state);
 #endif //BITCOIN_STAKE_STAKETX_H

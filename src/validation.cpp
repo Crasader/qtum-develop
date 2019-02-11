@@ -2168,7 +2168,7 @@ bool CheckReward(const CBlock& block, CValidationState& state, int nHeight, cons
 
     return true;
 }
-
+//////////////////////////////////////////////////////////////// decred
 uint64_t countSpentOutputs(CBlock& block, CBlock& parent){
 	// We need to skip the regular tx tree if it's not valid.
 	// We also exclude the coinbase transaction since it can't
@@ -2193,9 +2193,64 @@ uint64_t countSpentOutputs(CBlock& block, CBlock& parent){
 	return numSpent;
 }
 
+uint64_t countNumberOfTransactions(CBlock& block, CBlock& parent){
+	uint64_t numTxns;
+	if(headerApprovesParent(block.GetBlockHeader())){
+		numTxns += (uint64_t)parent.vtx.size();
+	}
+	numTxns += (uint64_t)block.svtx.size();
+	return numTxns;
+}
+
+int64_t CalculateAddedSubsidy(CBlock& block, CBlock& parent, CCoinsViewCache& view){
+	int64_t subsidy = 0;
+	CValidationStakeState state;
+	if(headerApprovesParent(block.GetBlockHeader())){
+    	CMutableTransaction txOut;
+    	CDiskTxPos txindex;
+    	ReadFromDisk(txOut, txindex, *pblocktree, parent.vtx[0]->vin[0].prevout);
+    	subsidy += txOut.vout[parent.vtx[0]->vin[0].prevout.n].nValue;
+	}
+
+	for(auto stx : block.svtx){
+		if(IsSSGen(*stx, state)){
+			Coin coin;
+			view.GetCoin(block.vtx[0]->vin[0].prevout, coin);
+			subsidy += coin.out.nValue;
+		}
+	}
+	return subsidy;
+}
+
 bool headerApprovesParent(const CBlockHeader& header){
 	return header.nVoteBits & BlockValid;
 }
+
+bool newBestState(CBlockIndex* node, uint64_t blockSize, uint64_t numTxns, uint64_t totalTxns,
+		int64_t medianTime, int64_t totalSubsidy, uint32_t nextPoolSize, int64_t nextStakeDiff,
+		std::vector<uint256> nextWinners, std::vector<uint256> missed, unsigned char* nextFinalState,
+		BestState* state){
+	uint256* prevHash;
+	if(node->pprev != nullptr){
+		prevHash = const_cast<uint256*>(node->pprev->phashBlock);
+	}
+	state->hash = const_cast<uint256*>(node->phashBlock);
+	state->prehash = prevHash;
+	state->height = node->nHeight;
+	state->nbits = node->nBits;
+	state->nextpoolsize = nextPoolSize;
+	state->nextStakeDiff = nextStakeDiff;
+	state->blocksize = blockSize;
+	state->numtxns = numTxns;
+	state->totaltxns = totalTxns;
+	state->medianTime = medianTime;
+	state->totalsubsidy = totalSubsidy;
+	state->nextwinningtickets = nextWinners;
+	state->missedtickets = missed;
+	memcpy(state->nextfinalstate, nextFinalState, 6);
+	return true;
+}
+////////////////////////////////////////////////////////////////
 
 valtype GetSenderAddress(const CTransaction& tx, const CCoinsViewCache* coinsView, const std::vector<CTransactionRef>* blockTxs){
     CScript script;
@@ -3222,11 +3277,43 @@ bool CChainState::connectBlockMock(CValidationState& state, CBlockIndex* node, c
     	return error("%s: flushBlockIndex flush modeify node failed", __func__);
     }
 
+	// Get the stake node for this node, filling in any data that
+	// may have yet to have been filled in.  In all cases this
+	// should simply give a pointer to data already prepared, but
+	// run this anyway to be safe.
     std::shared_ptr<TicketNode> stakeNode;
     fetchStakeNode(chainparams.GetConsensus(), node, stakeNode);
 
-    int64_t curStakeDiff;
-    estimateNextStakeDifficultyV2(chainparams.GetConsensus(), node->pprev, curStakeDiff);
+    {	// TODO move to ConnectTip, ypf
+    	LOCK(chainActive.stateLock);
+
+    	// Generate a new best state snapshot that will be used to update the
+    	// database and later memory if all database updates are successful.
+    	uint64_t curTotalTxns = chainActive.stateSnapshot->totaltxns;
+    	int64_t curTotalSubsidy = chainActive.stateSnapshot->totalsubsidy;
+
+    	// Calculate the exact subsidy produced by adding the block.
+    	int64_t nextStakeDiff;
+    	estimateNextStakeDifficultyV2(chainparams.GetConsensus(), node, nextStakeDiff);
+
+    	// Calculate the number of transactions that would be added by adding
+    	// this block.
+    	uint64_t numTxns = countNumberOfTransactions(const_cast<CBlock&>(block), parent);
+
+    	// Calculate the exact subsidy produced by adding the block.
+    	int64_t subsidy = CalculateAddedSubsidy(const_cast<CBlock&>(block), parent, view);
+
+    	uint64_t blockSize = ::GetSerializeSize(block, SER_NETWORK, PROTOCOL_VERSION | SERIALIZE_TRANSACTION_NO_WITNESS);
+    	BestState* state = &BestState();
+    	std::vector<uint256> missedHash;
+    	node->stakeNode->MissedTickets(missedHash);
+    	newBestState(node, blockSize, numTxns, curTotalTxns+numTxns,
+    			node->GetMedianTimePast(), curTotalSubsidy+subsidy,
+    			uint32_t(node->stakeNode->PoolSize()), nextStakeDiff,
+    			node->stakeNode->Winners(), missedHash,
+    			node->stakeNode->FinalState(), state);
+    	chainActive.stateSnapshot.reset(state);
+    }
 
     // Insert the block into the stake database.
     if(WriteConnectedBestNode(*stakeNode, *node->phashBlock)){

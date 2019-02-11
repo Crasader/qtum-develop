@@ -26,7 +26,7 @@ bool maybeFetchNewTickets(const Consensus::Params& consensusParams, CBlockIndex*
 
 	// No tickets in the live ticket pool are possible before stake enabled
 	// height.
-	if(node->nHeight < consensusParams.StakeEnabledHeight){
+	if((uint64_t)node->nHeight < consensusParams.StakeEnabledHeight){
 		node->newTickets.clear();
 		return true;
 	}

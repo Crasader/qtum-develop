@@ -509,4 +509,17 @@ bool FindSpentTicketsInBlock(const CBlock& block, SpentTicketsInBlock& ticketinf
 	return true;
 }
 
+TxType DetermineTxType(const CTransaction& tx, CValidationStakeState& state){
+	if(IsSStx(tx, state)){
+		return TxTypeSStx;
+	}
+	if(IsSSGen(tx, state)){
+		return TxTypeSSGen;
+	}
+	if(IsSSRtx(tx, state)){
+		return TxTypeSSRtx;
+	}
+	return TxTypeRegular;
+}
+
 

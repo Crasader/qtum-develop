@@ -151,19 +151,43 @@ struct CDiskBlockPos
 // However, the returned snapshot must be treated as immutable since it is
 // shared by all callers.
 class BestState{
-	uint256 hash;								// The hash of the block.
-	uint256 prehash;							// The previous block hash.
+public:
+
+	BestState() {
+		SetNull();
+	}
+
+	uint256* hash;								// The hash of the block.
+	uint256* prehash;							// The previous block hash.
+	int32_t height;								// The height of the block.
 	uint32_t nbits;								// The pow difficulty bits of the block.
 	uint32_t nextpoolsize;						// The next ticket pool size.
 	int64_t nextStakeDiff;						// The next stake difficulty.
 	uint64_t blocksize;							// The size of the block.
 	uint64_t numtxns;							// The number of txns in the block.
 	uint64_t totaltxns;							// The total number of txns in the chain.
-//	median time
+	int64_t  medianTime;						// Median time as per GetMedianTimePast.
 	int64_t totalsubsidy;						// The total subsidy for the chain.
 	std::vector<uint256> nextwinningtickets;	// The eligible tickets to vote on the next block.
 	std::vector<uint256> missedtickets;			// The missed tickets set to be revoked.
 	unsigned char nextfinalstate[6];			// The calculated state of the lottery for the next block.
+
+	void SetNull(){
+		hash->SetNull();
+		prehash->SetNull();
+		height = 0;
+		nbits = 0;
+		nextpoolsize = 0;
+		nextStakeDiff = 0;
+		blocksize = 0;
+		numtxns = 0;
+		totaltxns = 0;
+		medianTime = 0;
+		totalsubsidy = 0;
+		nextwinningtickets.clear();
+		missedtickets.clear();
+		memcpy(nextfinalstate, 0, sizeof(nextfinalstate));
+	}
 };
 
 enum BlockStatus: uint32_t {
@@ -586,6 +610,11 @@ private:
     //////////////////////////////////////////////////////////////// decred
     std::vector<CBlockIndex*> modified;
 
+    ////////////////////////////////////////////////////////////////
+
+public:
+
+    //////////////////////////////////////////////////////////////// decred
 	// The state is used as a fairly efficient way to cache information
 	// about the current best chain state that is returned to callers when
 	// requested.  It operates on the principle of MVCC such that any time a
@@ -597,11 +626,10 @@ private:
 	//
 	// In addition, some of the fields are stored in the database so the
 	// chain state can be quickly reconstructed on load.
-//    std::mutex stateLock;
-    BestState stateSnapshot;
+    CCriticalSection stateLock;
+    std::shared_ptr<BestState> stateSnapshot;
     ////////////////////////////////////////////////////////////////
 
-public:
     /** Returns the index entry for the genesis block of this chain, or nullptr if none. */
     CBlockIndex *Genesis() const {
         return vChain.size() > 0 ? vChain[0] : nullptr;
