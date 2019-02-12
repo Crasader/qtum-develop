@@ -3534,9 +3534,21 @@ bool CWallet::CreateTicketPurchaseTx(CWalletTx& wtxNew, CAmount& ticketPrice, CA
 
 				const uint32_t nSequence = coin_control.signalRbf ? MAX_BIP125_RBF_SEQUENCE : (CTxIn::SEQUENCE_FINAL - 1);
 				for (const auto& coin : vCoins)
-					txNew.vin.push_back(CTxIn(coin.outpoint, opTrueRedeemScript, nSequence));
+					txNew.vin.push_back(CTxIn(coin.outpoint, CScript(), nSequence));
 
-				nBytes = GetVirtualTransactionSize(txNew);
+                // Fill in dummy signatures for fee calculation.
+                if (!DummySignTx(txNew, vCoins)) {
+                    strFailReason = _("Signing transaction failed");
+                    return false;
+                }
+
+                nBytes = GetVirtualTransactionSize(txNew);
+
+                // Remove scriptSigs to eliminate the fee calculation dummy signatures
+                for (auto& vin : txNew.vin) {
+                    vin.scriptSig = CScript();
+                    vin.scriptWitness.SetNull();
+                }
 
 				nFeeNeeded = GetMinimumFee(nBytes, coin_control, ::mempool, ::feeEstimator, &feeCalc);
 
@@ -3630,6 +3642,20 @@ bool CWallet::CreateVoteTx(CWalletTx& wtxNew, CReserveKey& reservekey, CBlockInd
 {
 	CMutableTransaction txNew;
 
+	uint160 addrTrue;
+	const CScript senderScript = ticketTx.vout[0].scriptPubKey;
+    std::vector<valtype> vSolutions;
+    txnouttype whichType;
+    if (!Solver(senderScript, whichType, vSolutions)){
+    	return error("%s: bad script format", __func__);
+    }
+    if(whichType == TX_PUBKEYHASH){
+        // convert to pay to public key type
+        addrTrue.write(reinterpret_cast<const char*>(vSolutions[0].data()));
+    } else {
+    	return error("%s: other format not support, will fix it further", __func__);
+    }
+
 	// Calculate the proof-of-stake subsidy proportion based on the block
 	// height.
 	const Consensus::Params& consensusParams = Params().GetConsensus();
@@ -3646,7 +3672,7 @@ bool CWallet::CreateVoteTx(CWalletTx& wtxNew, CReserveKey& reservekey, CBlockInd
 	// The third and subsequent outputs pay the original commitment amounts
 	// along with the appropriate portion of the vote subsidy.  This impl
 	// uses the standard pay-to-script-hash to an OP_TRUE.
-	CScript stakeGenScript = PayToSSGen(p2shOpTrueAddr);
+	CScript stakeGenScript = PayToSSGen(addrTrue);
 
 	// Generate and return the transaction with the proof-of-stake subsidy
 	// coinbase and spending from the provided ticket along with the

@@ -147,6 +147,7 @@ BITCOIN_CORE_H = \
   script/standard.h \
   script/ismine.h \
   stake/ticketdb/chainio.h \
+  stake/staketx.h \
   stakenode.h \
   streams.h \
   support/allocators/secure.h \
@@ -615,7 +616,6 @@ libbitcoin_stake_a_SOURCES = \
   script/script.h \
   script/script.cpp \
   stake/staketx.cpp \
-  stake/staketx.h \
   stake/tickettreap/common.h \
   stake/tickettreap/common.cpp \
   stake/ticketdb/chainio.cpp \

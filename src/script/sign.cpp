@@ -85,6 +85,10 @@ static bool SignStep(const BaseSignatureCreator& creator, const CScript& scriptP
         keyID = CPubKey(vSolutions[0]).GetID();
         return Sign1(keyID, creator, scriptPubKey, ret, sigversion);
     case TX_PUBKEYHASH:
+    case TX_STAKEGEN:					// TODO, temp to do sign like pubkeyhash, ypf
+    case TX_STAKETX_SUBMMISSION:
+    case TX_STAKETX_REVOCATION:
+    case TX_STAKETX_CHANGE:
         keyID = CKeyID(uint160(vSolutions[0]));
         if (!Sign1(keyID, creator, scriptPubKey, ret, sigversion))
             return false;
