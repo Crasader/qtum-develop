@@ -877,7 +877,7 @@ BOOST_AUTO_TEST_CASE(ticket_treap_immutable_memory){
 	vm = rss = 0;
 	uint32_t maxHeight = UINT_MAX;
 	Immutable lastTreap(nodeTreaps[0]);
-	uint32_t allocsPerNode[numNodes] = {0};
+	uint32_t allocsPerNode[numNodes];
 	for(uint16_t num = 0; num < numNodes; num++){
 		std::vector<uint32_t> winnerIdx;
 		winnerIdx.resize(5);

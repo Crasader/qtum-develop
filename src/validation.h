@@ -651,7 +651,7 @@ bool headerApprovesParent(const CBlockHeader& header);
 bool newBestState(CBlockIndex* node, uint64_t blockSize, uint64_t numTxns, uint64_t totalTxns,
 		int64_t medianTime, int64_t totalSubsidy, uint32_t nextPoolSize,
 		int64_t nextStakeDiff, std::vector<uint256> nextWinners, std::vector<uint256> missed,
-		unsigned char* nextFinalState);
+		unsigned char* nextFinalState, BestState& state);
 
 ////////////////////////////////////////////////////////////////
 

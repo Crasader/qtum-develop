@@ -186,7 +186,7 @@ public:
 		totalsubsidy = 0;
 		nextwinningtickets.clear();
 		missedtickets.clear();
-		memcpy(nextfinalstate, 0, sizeof(nextfinalstate));
+		memset(nextfinalstate, 0, sizeof(nextfinalstate));
 	}
 };
 
@@ -613,7 +613,6 @@ private:
     ////////////////////////////////////////////////////////////////
 
 public:
-
     //////////////////////////////////////////////////////////////// decred
 	// The state is used as a fairly efficient way to cache information
 	// about the current best chain state that is returned to callers when
@@ -626,8 +625,20 @@ public:
 	//
 	// In addition, some of the fields are stored in the database so the
 	// chain state can be quickly reconstructed on load.
-    CCriticalSection stateLock;
+    mutable CCriticalSection cs_stateLock;
     std::shared_ptr<BestState> stateSnapshot;
+
+    CChain(){
+    	vChain.clear();
+    	modified.clear();
+    	stateSnapshot->SetNull();
+    }
+
+    CChain(CChain& chain){
+    	vChain = chain.vChain;
+    	modified = chain.modified;
+    	stateSnapshot = chain.stateSnapshot;
+    }
     ////////////////////////////////////////////////////////////////
 
     /** Returns the index entry for the genesis block of this chain, or nullptr if none. */
@@ -688,6 +699,12 @@ public:
     // block nodes, writes those nodes to the database and clears the set of
     // modified nodes if it succeeds.
     bool flushBlockIndex();
+
+    bool updateStateSnapshot(BestState& state){
+    	LOCK(cs_stateLock);
+    	stateSnapshot.reset(&state);
+    	return true;
+    }
     ////////////////////////////////////////////////////////////////
 
 };

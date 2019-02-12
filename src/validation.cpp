@@ -2229,25 +2229,25 @@ bool headerApprovesParent(const CBlockHeader& header){
 bool newBestState(CBlockIndex* node, uint64_t blockSize, uint64_t numTxns, uint64_t totalTxns,
 		int64_t medianTime, int64_t totalSubsidy, uint32_t nextPoolSize, int64_t nextStakeDiff,
 		std::vector<uint256> nextWinners, std::vector<uint256> missed, unsigned char* nextFinalState,
-		BestState* state){
+		BestState& state){
 	uint256* prevHash;
 	if(node->pprev != nullptr){
 		prevHash = const_cast<uint256*>(node->pprev->phashBlock);
 	}
-	state->hash = const_cast<uint256*>(node->phashBlock);
-	state->prehash = prevHash;
-	state->height = node->nHeight;
-	state->nbits = node->nBits;
-	state->nextpoolsize = nextPoolSize;
-	state->nextStakeDiff = nextStakeDiff;
-	state->blocksize = blockSize;
-	state->numtxns = numTxns;
-	state->totaltxns = totalTxns;
-	state->medianTime = medianTime;
-	state->totalsubsidy = totalSubsidy;
-	state->nextwinningtickets = nextWinners;
-	state->missedtickets = missed;
-	memcpy(state->nextfinalstate, nextFinalState, 6);
+	state.hash = const_cast<uint256*>(node->phashBlock);
+	state.prehash = prevHash;
+	state.height = node->nHeight;
+	state.nbits = node->nBits;
+	state.nextpoolsize = nextPoolSize;
+	state.nextStakeDiff = nextStakeDiff;
+	state.blocksize = blockSize;
+	state.numtxns = numTxns;
+	state.totaltxns = totalTxns;
+	state.medianTime = medianTime;
+	state.totalsubsidy = totalSubsidy;
+	state.nextwinningtickets = nextWinners;
+	state.missedtickets = missed;
+	memcpy(state.nextfinalstate, nextFinalState, 6);
 	return true;
 }
 ////////////////////////////////////////////////////////////////
@@ -3285,8 +3285,6 @@ bool CChainState::connectBlockMock(CValidationState& state, CBlockIndex* node, c
     fetchStakeNode(chainparams.GetConsensus(), node, stakeNode);
 
     {	// TODO move to ConnectTip, ypf
-    	LOCK(chainActive.stateLock);
-
     	// Generate a new best state snapshot that will be used to update the
     	// database and later memory if all database updates are successful.
     	uint64_t curTotalTxns = chainActive.stateSnapshot->totaltxns;
@@ -3304,7 +3302,7 @@ bool CChainState::connectBlockMock(CValidationState& state, CBlockIndex* node, c
     	int64_t subsidy = CalculateAddedSubsidy(const_cast<CBlock&>(block), parent, view);
 
     	uint64_t blockSize = ::GetSerializeSize(block, SER_NETWORK, PROTOCOL_VERSION | SERIALIZE_TRANSACTION_NO_WITNESS);
-    	BestState* state = &BestState();
+    	BestState state;
     	std::vector<uint256> missedHash;
     	node->stakeNode->MissedTickets(missedHash);
     	newBestState(node, blockSize, numTxns, curTotalTxns+numTxns,
@@ -3312,7 +3310,7 @@ bool CChainState::connectBlockMock(CValidationState& state, CBlockIndex* node, c
     			uint32_t(node->stakeNode->PoolSize()), nextStakeDiff,
     			node->stakeNode->Winners(), missedHash,
     			node->stakeNode->FinalState(), state);
-    	chainActive.stateSnapshot.reset(state);
+    	chainActive.updateStateSnapshot(state);
     }
 
     // Insert the block into the stake database.

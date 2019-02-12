@@ -136,3 +136,6 @@ test/functional/.idea/*
 .svn/*
 .tx/*
 .travis.yml
+
+#eclipse
+.settings/*

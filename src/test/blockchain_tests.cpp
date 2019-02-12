@@ -22,12 +22,11 @@ CBlockIndex* CreateBlockIndexWithNbits(uint32_t nbits)
     return block_index;
 }
 
-CChain CreateChainWithNbits(uint32_t nbits)
+bool CreateChainWithNbits(uint32_t nbits, CChain& chain)
 {
     CBlockIndex* block_index = CreateBlockIndexWithNbits(nbits);
-    CChain chain;
     chain.SetTip(block_index);
-    return chain;
+    return true;
 }
 
 void RejectDifficultyMismatch(double difficulty, double expected_difficulty) {
@@ -94,7 +93,8 @@ BOOST_AUTO_TEST_CASE(get_difficulty_for_null_tip)
  */
 BOOST_AUTO_TEST_CASE(get_difficulty_for_null_block_index)
 {
-    CChain chain = CreateChainWithNbits(0x1df88f6f);
+    CChain chain;
+    CreateChainWithNbits(0x1df88f6f, chain);
 
     double difficulty = GetDifficulty(chain, nullptr);
     delete chain.Tip();
@@ -110,7 +110,8 @@ BOOST_AUTO_TEST_CASE(get_difficulty_for_null_block_index)
  */
 BOOST_AUTO_TEST_CASE(get_difficulty_for_block_index_overrides_tip)
 {
-    CChain chain = CreateChainWithNbits(0x1df88f6f);
+    CChain chain;
+    CreateChainWithNbits(0x1df88f6f, chain);
     /* This block index's nbits should be used
      * instead of the chain's when calculating difficulty.
      */
