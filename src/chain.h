@@ -613,18 +613,6 @@ private:
     ////////////////////////////////////////////////////////////////
 
 public:
-//    //////////////////////////////////////////////////////////////// decred
-//
-//    CChain(){
-//    	vChain.clear();
-//    	modified.clear();
-//    }
-//
-//    CChain(CChain& chain){
-//    	vChain = chain.vChain;
-//    	modified = chain.modified;
-//    }
-//    ////////////////////////////////////////////////////////////////
 
     /** Returns the index entry for the genesis block of this chain, or nullptr if none. */
     CBlockIndex *Genesis() const {
