@@ -613,33 +613,18 @@ private:
     ////////////////////////////////////////////////////////////////
 
 public:
-    //////////////////////////////////////////////////////////////// decred
-	// The state is used as a fairly efficient way to cache information
-	// about the current best chain state that is returned to callers when
-	// requested.  It operates on the principle of MVCC such that any time a
-	// new block becomes the best block, the state pointer is replaced with
-	// a new struct and the old state is left untouched.  In this way,
-	// multiple callers can be pointing to different best chain states.
-	// This is acceptable for most callers because the state is only being
-	// queried at a specific point in time.
-	//
-	// In addition, some of the fields are stored in the database so the
-	// chain state can be quickly reconstructed on load.
-    mutable CCriticalSection cs_stateLock;
-    std::shared_ptr<BestState> stateSnapshot;
-
-    CChain(){
-    	vChain.clear();
-    	modified.clear();
-    	stateSnapshot->SetNull();
-    }
-
-    CChain(CChain& chain){
-    	vChain = chain.vChain;
-    	modified = chain.modified;
-    	stateSnapshot = chain.stateSnapshot;
-    }
-    ////////////////////////////////////////////////////////////////
+//    //////////////////////////////////////////////////////////////// decred
+//
+//    CChain(){
+//    	vChain.clear();
+//    	modified.clear();
+//    }
+//
+//    CChain(CChain& chain){
+//    	vChain = chain.vChain;
+//    	modified = chain.modified;
+//    }
+//    ////////////////////////////////////////////////////////////////
 
     /** Returns the index entry for the genesis block of this chain, or nullptr if none. */
     CBlockIndex *Genesis() const {
@@ -700,11 +685,6 @@ public:
     // modified nodes if it succeeds.
     bool flushBlockIndex();
 
-    bool updateStateSnapshot(BestState& state){
-    	LOCK(cs_stateLock);
-    	stateSnapshot.reset(&state);
-    	return true;
-    }
     ////////////////////////////////////////////////////////////////
 
 };

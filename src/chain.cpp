@@ -96,7 +96,8 @@ bool CChain::flushBlockIndex(){
 			vChain[node->nHeight] = node;	// TODO: temp do modify in here. prepare to delete it, ypf
 		}
 	}
-
+	// Clear the set of modified nodes.
+	modified.clear();
 	return true;
 }
 

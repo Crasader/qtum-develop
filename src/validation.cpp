@@ -167,6 +167,23 @@ private:
       */
     std::set<CBlockIndex*> g_failed_blocks;
 
+    //////////////////////////////////////////////////////////////// decred
+	// The state is used as a fairly efficient way to cache information
+	// about the current best chain state that is returned to callers when
+	// requested.  It operates on the principle of MVCC such that any time a
+	// new block becomes the best block, the state pointer is replaced with
+	// a new struct and the old state is left untouched.  In this way,
+	// multiple callers can be pointing to different best chain states.
+	// This is acceptable for most callers because the state is only being
+	// queried at a specific point in time.
+	//
+	// In addition, some of the fields are stored in the database so the
+	// chain state can be quickly reconstructed on load.
+    mutable CCriticalSection cs_stateLock;
+    std::shared_ptr<BestState> stateSnapshot;
+
+    ////////////////////////////////////////////////////////////////
+
 public:
     CChain chainActive;
     BlockMap mapBlockIndex;
@@ -204,6 +221,14 @@ public:
     void PruneBlockIndexCandidates();
 
     void UnloadBlockIndex();
+
+    //////////////////////////////////////////////////////////////// decred
+    bool updateStateSnapshot(BestState& state){
+    	LOCK(cs_stateLock);
+    	stateSnapshot.reset(&state);
+    	return true;
+    }
+    ////////////////////////////////////////////////////////////////
 
 private:
     bool ActivateBestChainStep(CValidationState& state, const CChainParams& chainparams, CBlockIndex* pindexMostWork, const std::shared_ptr<const CBlock>& pblock, bool& fInvalidFound, ConnectTrace& connectTrace);
@@ -3287,8 +3312,8 @@ bool CChainState::connectBlockMock(CValidationState& state, CBlockIndex* node, c
     {	// TODO move to ConnectTip, ypf
     	// Generate a new best state snapshot that will be used to update the
     	// database and later memory if all database updates are successful.
-    	uint64_t curTotalTxns = chainActive.stateSnapshot->totaltxns;
-    	int64_t curTotalSubsidy = chainActive.stateSnapshot->totalsubsidy;
+    	uint64_t curTotalTxns = stateSnapshot->totaltxns;
+    	int64_t curTotalSubsidy = stateSnapshot->totalsubsidy;
 
     	// Calculate the exact subsidy produced by adding the block.
     	int64_t nextStakeDiff;
@@ -3310,7 +3335,7 @@ bool CChainState::connectBlockMock(CValidationState& state, CBlockIndex* node, c
     			uint32_t(node->stakeNode->PoolSize()), nextStakeDiff,
     			node->stakeNode->Winners(), missedHash,
     			node->stakeNode->FinalState(), state);
-    	chainActive.updateStateSnapshot(state);
+    	updateStateSnapshot(state);
     }
 
     // Insert the block into the stake database.
