@@ -1053,7 +1053,7 @@ public:
     // - Third and subsequent outputs are the payouts according to the ticket
     //   commitments and the appropriate proportion of the vote subsidy.
     bool CreateVoteTx(CWalletTx& wtxNew, CReserveKey& reservekey, CBlockIndex* voteBlock, CTransaction& ticketTx, std::string& strFailReason,
-    						uint32_t ticketBlockHeight, uint32_t ticketBlockIndex);
+    						uint32_t ticketBlockHeight, uint32_t ticketBlockIndex, bool sign=true);
 
     // CreateRevocationTx returns a new transaction (ssrtx) refunding the ticket
     // price for a ticket which either missed its vote or expired.
@@ -1064,7 +1064,7 @@ public:
     // The transaction consists of the following outputs:
     // - The payouts according to the ticket commitments.
     bool CreateRevocationTx(CWalletTx& wtxNew, CReserveKey& reservekey, CTransaction& voteTx, std::string& strFailReason,
-			uint32_t ticketBlockHeight, uint32_t ticketBlockIndex);
+			uint32_t ticketBlockHeight, uint32_t ticketBlockIndex, bool sign=true);
 
     bool CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey, CConnman* connman, CValidationState& state);
 

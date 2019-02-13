@@ -3443,17 +3443,9 @@ bool CWallet::CreateTicketPurchaseTx(CWalletTx& wtxNew, CAmount& ticketPrice, CA
     auto it = mapWallet.find(senderInput.hash);
     if(it != mapWallet.end()){
     	const CScript senderScript = it->second.tx->vout[senderInput.n].scriptPubKey;
-        std::vector<valtype> vSolutions;
-        txnouttype whichType;
-        if (!Solver(senderScript, whichType, vSolutions)){
-        	return error("%s: solver the vout(txid: %s, n: %d) failed", __func__, senderInput.hash.GetHex(), senderInput.n);
-        }
-        if(whichType == TX_PUBKEYHASH){
-            // convert to pay to public key type
-            addrTrue.write(reinterpret_cast<const char*>(vSolutions[0].data()));
-        } else {
-        	return error("%s: other format not support, will fix it further", __func__);
-        }
+    	if(!GetPubkHashfromP2PKH(senderScript, addrTrue)){
+    		return error("%s: GetPubkHashfromP2PKH parse pubkhash failed", __func__);
+    	}
     } else {
     	return error("%s: utxo(txid: %s, n: %d) not in this wallet", __func__, senderInput.hash.GetHex(), senderInput.n);
     }
@@ -3638,23 +3630,15 @@ bool CWallet::CreateTicketPurchaseTx(CWalletTx& wtxNew, CAmount& ticketPrice, CA
 }
 
 bool CWallet::CreateVoteTx(CWalletTx& wtxNew, CReserveKey& reservekey, CBlockIndex* voteBlock, CTransaction& ticketTx, std::string& strFailReason,
-    						uint32_t ticketBlockHeight, uint32_t ticketBlockIndex)
+    						uint32_t ticketBlockHeight, uint32_t ticketBlockIndex, bool sign)
 {
 	CMutableTransaction txNew;
 
 	uint160 addrTrue;
 	const CScript senderScript = ticketTx.vout[0].scriptPubKey;
-    std::vector<valtype> vSolutions;
-    txnouttype whichType;
-    if (!Solver(senderScript, whichType, vSolutions)){
-    	return error("%s: bad script format", __func__);
-    }
-    if(whichType == TX_PUBKEYHASH){
-        // convert to pay to public key type
-        addrTrue.write(reinterpret_cast<const char*>(vSolutions[0].data()));
-    } else {
-    	return error("%s: other format not support, will fix it further", __func__);
-    }
+	if(!GetPubkHashfromP2PKH(senderScript, addrTrue)){
+		return error("%s: GetPubkHashfromP2PKH parse pubkhash failed", __func__);
+	}
 
 	// Calculate the proof-of-stake subsidy proportion based on the block
 	// height.
@@ -3681,7 +3665,19 @@ bool CWallet::CreateVoteTx(CWalletTx& wtxNew, CReserveKey& reservekey, CBlockInd
 	const uint32_t nSequence = CTxIn::SEQUENCE_FINAL;
 	txNew.vin.push_back(CTxIn(COutPoint(uint256(), CTxIn::MaxPrevOutIndex), consensusParams.StakeBaseSigScript, nSequence));
 
-	txNew.vin.push_back(CTxIn(COutPoint(ticketHash, 0), opTrueRedeemScript, nSequence));
+    if (sign)
+    {
+        CTransaction txNewConst(txNew);
+		SignatureData sigdata;
+
+		if (!ProduceSignature(TransactionSignatureCreator(this, &txNewConst, 0, ticketPrice, SIGHASH_ALL), senderScript, sigdata))
+		{
+			strFailReason = _("Signing transaction failed");
+			return false;
+		} else {
+			txNew.vin.push_back(CTxIn(COutPoint(ticketHash, 0), sigdata.scriptSig, nSequence));
+		}
+    }
 
 	txNew.vout.push_back(CTxOut(0, blockScript));
 	txNew.vout.push_back(CTxOut(0, voteScript));
@@ -3693,14 +3689,20 @@ bool CWallet::CreateVoteTx(CWalletTx& wtxNew, CReserveKey& reservekey, CBlockInd
     return true;
 }
 
-bool CreateRevocationTx(CWalletTx& wtxNew, CReserveKey& reservekey, CTransaction& ticketTx, std::string& strFailReason,
-		uint32_t ticketBlockHeight, uint32_t ticketBlockIndex)
+bool CWallet::CreateRevocationTx(CWalletTx& wtxNew, CReserveKey& reservekey, CTransaction& ticketTx, std::string& strFailReason,
+		uint32_t ticketBlockHeight, uint32_t ticketBlockIndex, bool sign)
 {
 	CMutableTransaction txNew;
 
+	uint160 addrTrue;
+	const CScript senderScript = ticketTx.vout[0].scriptPubKey;
+	if(!GetPubkHashfromP2PKH(senderScript, addrTrue)){
+		return error("%s: GetPubkHashfromP2PKH parse pubkhash failed", __func__);
+	}
+
 	// The outputs pay the original commitment amounts.  This impl uses the
 	// standard pay-to-script-hash to an OP_TRUE.
-	CScript revokeScript = PayToSSRtx(p2shOpTrueAddr);
+	CScript revokeScript = PayToSSRtx(addrTrue);
 
 	// Generate and return the transaction spending from the provided ticket
 	// along with the previously described outputs.
@@ -3708,7 +3710,21 @@ bool CreateRevocationTx(CWalletTx& wtxNew, CReserveKey& reservekey, CTransaction
 	uint256 ticketHash = ticketTx.GetHash();
 
 	const uint32_t nSequence = CTxIn::SEQUENCE_FINAL;
-	txNew.vin.push_back(CTxIn(COutPoint(ticketHash, 0), opTrueRedeemScript, nSequence));
+
+    if (sign)
+    {
+        CTransaction txNewConst(txNew);
+		SignatureData sigdata;
+
+		if (!ProduceSignature(TransactionSignatureCreator(this, &txNewConst, 0, ticketPrice, SIGHASH_ALL), senderScript, sigdata))
+		{
+			strFailReason = _("Signing transaction failed");
+			return false;
+		} else {
+			txNew.vin.push_back(CTxIn(COutPoint(ticketHash, 0), sigdata.scriptSig, nSequence));
+		}
+    }
+
 	txNew.vout.push_back(CTxOut(ticketPrice, revokeScript));
 
     // Embed the constructed transaction data in wtxNew.

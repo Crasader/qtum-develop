@@ -202,6 +202,8 @@ CScript GetScriptForMultisig(int nRequired, const std::vector<CPubKey>& keys);
  */
 CScript GetScriptForWitness(const CScript& redeemscript);
 
+//////////////////////////////////////////////////////////////// decred
+
 // PayToSStx creates a new script to pay a transaction output to a script hash or
 // public key hash, but tags the output with OP_SSTX. For use in constructing
 // valid SStxs.
@@ -240,5 +242,9 @@ CScript voteBitsScript(uint16_t bits);
 // commitment script suitable for use in a ticket purchase tx (sstx) using the
 // provided target address, amount, and fee limits.
 CScript PurchaseCommitmentScript(uint160& address, CAmount&  amount, CAmount& voteFeeLimit, CAmount& revocationFeeLimit);
+
+bool GetPubkHashfromP2PKH(const CScript& script, uint160& addrOut);
+
+////////////////////////////////////////////////////////////////
 
 #endif // BITCOIN_SCRIPT_STANDARD_H

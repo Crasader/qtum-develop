@@ -2255,7 +2255,7 @@ bool newBestState(CBlockIndex* node, uint64_t blockSize, uint64_t numTxns, uint6
 		int64_t medianTime, int64_t totalSubsidy, uint32_t nextPoolSize, int64_t nextStakeDiff,
 		std::vector<uint256> nextWinners, std::vector<uint256> missed, unsigned char* nextFinalState,
 		BestState& state){
-	uint256* prevHash;
+	uint256* prevHash = nullptr;
 	if(node->pprev != nullptr){
 		prevHash = const_cast<uint256*>(node->pprev->phashBlock);
 	}

@@ -475,6 +475,8 @@ CScript GetScriptForWitness(const CScript& redeemscript)
     return GetScriptForDestination(WitnessV0ScriptHash(hash));
 }
 
+//////////////////////////////////////////////////////////////// decred
+
 CScript PayToSStx(uint160& stakeaddress){
 	return CScript() << OP_SSTX << OP_DUP << OP_HASH160 << ToByteVector(stakeaddress) << OP_EQUALVERIFY << OP_CHECKSIG;
 }
@@ -541,6 +543,23 @@ CScript PurchaseCommitmentScript(uint160& address, CAmount&  amount, CAmount& vo
 
 	return script;
 }
+
+bool GetPubkHashfromP2PKH(const CScript& senderScript, uint160& addrOut){
+    std::vector<valtype> vSolutions;
+    txnouttype whichType;
+    if (!Solver(senderScript, whichType, vSolutions)){
+    	return error("%s: bad script format", __func__);
+    }
+    if(whichType == TX_PUBKEYHASH){
+        // convert to pay to public key type
+    	addrOut.write(reinterpret_cast<const char*>(vSolutions[0].data()));
+    } else {
+    	return error("%s: other format not support, will fix it further", __func__);
+    }
+    return true;
+}
+
+////////////////////////////////////////////////////////////////
 
 bool IsValidDestination(const CTxDestination& dest) {
     return dest.which() != 0;
