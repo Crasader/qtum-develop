@@ -173,8 +173,8 @@ public:
 	unsigned char nextfinalstate[6];			// The calculated state of the lottery for the next block.
 
 	void SetNull(){
-		hash->SetNull();
-		prehash->SetNull();
+		hash = nullptr;
+		prehash = nullptr;
 		height = 0;
 		nbits = 0;
 		nextpoolsize = 0;

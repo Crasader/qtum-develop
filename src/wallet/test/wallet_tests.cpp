@@ -710,11 +710,4 @@ BOOST_FIXTURE_TEST_CASE(ListCoins, ListCoinsTestingSetup)
     BOOST_CHECK_EQUAL(list.begin()->second.size(), 2);
 }
 
-BOOST_AUTO_TEST_CASE(ListCoinsTesting){
-	ListCoinsTestingSetup LCtest;
-	std::string coinbaseAddress = LCtest.coinbaseKey.GetPubKey().GetID().ToString();
-	BOOST_CHECK_MESSAGE(1 == 1, strprintf(coinbaseAddress));
-	BOOST_CHECK_EQUAL(1, 1);
-}
-
 BOOST_AUTO_TEST_SUITE_END()

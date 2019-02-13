@@ -2219,7 +2219,7 @@ uint64_t countSpentOutputs(CBlock& block, CBlock& parent){
 }
 
 uint64_t countNumberOfTransactions(CBlock& block, CBlock& parent){
-	uint64_t numTxns;
+	uint64_t numTxns = 0;
 	if(headerApprovesParent(block.GetBlockHeader())){
 		numTxns += (uint64_t)parent.vtx.size();
 	}
@@ -2763,31 +2763,31 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
 
         nInputs += tx.vin.size();
 
-//        if (!tx.IsCoinBase())	// remove not coinbase check, ypf
-//        {
-		CAmount txfee = 0;
-		if (!Consensus::CheckTxInputs(tx, state, view, pindex->nHeight, txfee)) {
-			return error("%s: Consensus::CheckTxInputs: %s, %s", __func__, tx.GetHash().ToString(), FormatStateMessage(state));
-		}
-		nFees += txfee;
-		if (!MoneyRange(nFees)) {
-			return state.DoS(100, error("%s: accumulated fee in the block out of range.", __func__),
-							 REJECT_INVALID, "bad-txns-accumulated-fee-outofrange");
-		}
+        if (!tx.IsCoinBase())	// TODO, remove not coinbase check, ypf
+        {
+			CAmount txfee = 0;
+			if (!Consensus::CheckTxInputs(tx, state, view, pindex->nHeight, txfee)) {
+				return error("%s: Consensus::CheckTxInputs: %s, %s", __func__, tx.GetHash().ToString(), FormatStateMessage(state));
+			}
+			nFees += txfee;
+			if (!MoneyRange(nFees)) {
+				return state.DoS(100, error("%s: accumulated fee in the block out of range.", __func__),
+								 REJECT_INVALID, "bad-txns-accumulated-fee-outofrange");
+			}
 
-		// Check that transaction is BIP68 final
-		// BIP68 lock checks (as opposed to nLockTime checks) must
-		// be in ConnectBlock because they require the UTXO set
-		prevheights.resize(tx.vin.size());
-		for (size_t j = 0; j < tx.vin.size(); j++) {
-			prevheights[j] = view.AccessCoin(tx.vin[j].prevout).nHeight;
-		}
+			// Check that transaction is BIP68 final
+			// BIP68 lock checks (as opposed to nLockTime checks) must
+			// be in ConnectBlock because they require the UTXO set
+			prevheights.resize(tx.vin.size());
+			for (size_t j = 0; j < tx.vin.size(); j++) {
+				prevheights[j] = view.AccessCoin(tx.vin[j].prevout).nHeight;
+			}
 
-		if (!SequenceLocks(tx, nLockTimeFlags, &prevheights, *pindex)) {
-			return state.DoS(100, error("%s: contains a non-BIP68-final transaction", __func__),
-							 REJECT_INVALID, "bad-txns-nonfinal");
-		}
-//        }
+			if (!SequenceLocks(tx, nLockTimeFlags, &prevheights, *pindex)) {
+				return state.DoS(100, error("%s: contains a non-BIP68-final transaction", __func__),
+								 REJECT_INVALID, "bad-txns-nonfinal");
+			}
+        }
 
         // GetTransactionSigOpCost counts 3 types of sigops:
         // * legacy (always)
