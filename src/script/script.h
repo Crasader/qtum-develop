@@ -181,17 +181,18 @@ enum opcodetype
     OP_NOP8 = 0xb7,
     OP_NOP9 = 0xb8,
     OP_NOP10 = 0xb9,
-	OP_SSTX = 0xba, // 186 DECRED
-	OP_SSGEN = 0xbb, // 187 DECRED
-	OP_SSRTX = 0xbc, // 188 DECRED
-	OP_SSTXCHANGE = 0xbd, // 189 DECRED
-	OP_CHECKSIGALT = 0xbe, // 190 DECRED
-	OP_CHECKSIGALTVERIFY = 0xbf, // 191 DECRED
 
     // Execute EXT byte code.
     OP_CREATE = 0xc1,
     OP_CALL = 0xc2,
     OP_SPEND = 0xc3,
+
+	OP_SSTX = 0xca, // 186 DECRED
+	OP_SSGEN = 0xcb, // 187 DECRED
+	OP_SSRTX = 0xcc, // 188 DECRED
+	OP_SSTXCHANGE = 0xcd, // 189 DECRED
+	OP_CHECKSIGALT = 0xce, // 190 DECRED
+	OP_CHECKSIGALTVERIFY = 0xcf, // 191 DECRED
 
     // template matching params
     OP_GAS_PRICE = 0xf5,
@@ -207,7 +208,7 @@ enum opcodetype
 };
 
 // Maximum value that an opcode can be
-static const unsigned int MAX_OPCODE = OP_NOP10;
+static const unsigned int MAX_OPCODE = OP_CHECKSIGALTVERIFY;
 
 const char* GetOpName(opcodetype opcode);
 

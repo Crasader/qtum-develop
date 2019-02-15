@@ -169,9 +169,6 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     if (!fProofOfStake)
         UpdateTime(pblock, chainparams.GetConsensus(), pindexPrev);
     pblock->nBits = GetNextWorkRequired(pindexPrev, pblock, chainparams.GetConsensus(),fProofOfStake);
-	int64_t sBits;
-	estimateNextStakeDifficultyV2(chainparams.GetConsensus(), pindexPrev, sBits);
-	pblock->sBits = sBits;
 
     const int64_t nMedianTimePast = pindexPrev->GetMedianTimePast();
 
@@ -284,6 +281,14 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
 
     return std::move(pblocktemplate);
 }
+
+//////////////////////////////////////////////////////////////// decred
+bool BlockAssembler::CreateNewBlockTemp(std::unique_ptr<CBlockTemplate> blocktemplateUP){
+
+	return true;
+}
+
+//////////////////////////////////////////////////////////////// decred
 
 std::unique_ptr<CBlockTemplate> BlockAssembler::CreateEmptyBlock(const CScript& scriptPubKeyIn, bool fMineWitnessTx, bool fProofOfStake, int64_t* pTotalFees, int32_t nTime)
 {

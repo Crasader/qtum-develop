@@ -197,6 +197,53 @@ TestChain100Setup::~TestChain100Setup()
 {
 }
 
+TestChain100SetupTemp::TestChain100SetupTemp() : TestingSetup(CBaseChainParams::UNITTEST)
+{
+    // CreateAndProcessBlock() does not support building SegWit blocks, so don't activate in these tests.
+    // TODO: fix the code to support SegWit blocks.
+    UpdateVersionBitsParameters(Consensus::DEPLOYMENT_SEGWIT, 0, Consensus::BIP9Deployment::NO_TIMEOUT);
+    // Generate a 100-block chain:
+    coinbaseKey.MakeNewKey(true);
+    CScript scriptPubKey = CScript() <<  ToByteVector(coinbaseKey.GetPubKey()) << OP_CHECKSIG;
+    for (int i = 0; i < COINBASE_MATURITY; i++)
+    {
+        std::vector<CMutableTransaction> noTxns;
+        std::vector<CMutableTransaction> nosTxns;
+        CBlock b = CreateAndProcessBlock(noTxns, nosTxns, scriptPubKey);
+        coinbaseTxns.push_back(*b.vtx[0]);
+    }
+}
+
+CBlock TestChain100SetupTemp::CreateAndProcessBlock(const std::vector<CMutableTransaction>& txns, const std::vector<CMutableTransaction>& stxns, const CScript& scriptPubKey){
+    const CChainParams& chainparams = Params();
+    std::unique_ptr<CBlockTemplate> pblocktemplate = BlockAssembler(chainparams).CreateNewBlock(scriptPubKey);
+    CBlock& block = pblocktemplate->block;
+
+    // Replace mempool-selected txns with just coinbase plus passed-in txns:
+    block.vtx.resize(1);
+    for (const CMutableTransaction& tx : txns)
+        block.vtx.push_back(MakeTransactionRef(tx));
+    for (const CMutableTransaction& stx : stxns)
+        block.svtx.push_back(MakeTransactionRef(stx));
+    // IncrementExtraNonce creates a valid coinbase and merkleRoot
+    unsigned int extraNonce = 0;
+    {
+        LOCK(cs_main);
+        IncrementExtraNonce(&block, chainActive.Tip(), extraNonce);
+    }
+
+    while (!CheckProofOfWork(block.GetHash(), block.nBits, chainparams.GetConsensus())) ++block.nNonce;
+
+    std::shared_ptr<const CBlock> shared_pblock = std::make_shared<const CBlock>(block);
+    ProcessNewBlock(chainparams, shared_pblock, true, nullptr);
+
+    CBlock result = block;
+    return result;
+}
+
+TestChain100SetupTemp::~TestChain100SetupTemp()
+{
+}
 
 CTxMemPoolEntry TestMemPoolEntryHelper::FromTx(const CMutableTransaction &tx) {
     CTransaction txn(tx);
