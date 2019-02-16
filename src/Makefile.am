@@ -274,6 +274,8 @@ libbitcoin_wallet_a_SOURCES = \
   wallet/walletdb.cpp \
   wallet/walletutil.cpp \
   pos.cpp \
+  wallet/test/wallet_stx_def.cpp \
+  wallet_test/wallet_stx_def.h \
   $(BITCOIN_CORE_H)
 
 # crypto primitives library

@@ -285,6 +285,12 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
 //////////////////////////////////////////////////////////////// decred
 bool BlockAssembler::CreateNewBlockTemp(std::unique_ptr<CBlockTemplate> blocktemplateUP){
 
+	CBlockIndex* pindexPrev = chainActive.Tip();
+
+    int64_t sbits;
+    estimateNextStakeDifficultyV2(chainparams.GetConsensus(), pindexPrev, sbits);
+    pblock->sBits = sbits;
+
 	return true;
 }
 

@@ -45,6 +45,7 @@ if ENABLE_WALLET
 qt_test_test_qtum_qt_SOURCES += \
   qt/test/paymentservertests.cpp \
   qt/test/wallettests.cpp \
+  wallet/test/wallet_stx_def.cpp \
   wallet/test/wallet_test_fixture.cpp
 endif
 

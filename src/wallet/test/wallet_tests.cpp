@@ -15,6 +15,8 @@
 #include <validation.h>
 #include <wallet/coincontrol.h>
 #include <wallet/test/wallet_test_fixture.h>
+#include <chainparams.h>
+#include <pos.h>
 
 #include <boost/test/unit_test.hpp>
 #include <univalue.h>
@@ -654,6 +656,7 @@ public:
             LOCK(wallet->cs_wallet);
             blocktx = CMutableTransaction(*wallet->mapWallet.at(wtx.GetHash()).tx);
         }
+
         CreateAndProcessBlock({CMutableTransaction(blocktx)}, GetScriptForRawPubKey(coinbaseKey.GetPubKey()));
         LOCK(wallet->cs_wallet);
         auto it = wallet->mapWallet.find(wtx.GetHash());

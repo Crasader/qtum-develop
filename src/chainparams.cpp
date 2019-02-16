@@ -159,15 +159,15 @@ public:
         fRequireStandard = true;
         fMineBlocksOnDemand = false;
 
-        checkpointData = {
-            {
-                { 0, uint256S("000075aef83cf2853580f8ae8ce6f8c3096cfa21d98334d6e3f95e5582ed986c")},
-                { 5000, uint256S("00006a5338e5647872bd91de1d291365e941e14dff1939b5f16d1804d1ce61cd")}, //last PoW block
-                { 45000, uint256S("060c6af680f6975184c7a17059f2ff4970544fcfd4104e73744fe7ab7be14cfc")},
-                { 90000, uint256S("66fcf426b0aa6f2c9e3330cb2775e9e13c4a2b8ceedb50f8931ae0e12078ad50")},
-                { 245000, uint256S("ed79607feeadcedf5b94f1c43df684af5106e79b0989a008a88f9dc2221cc12a")},
-            }
-        };
+//        checkpointData = {
+//            {
+//                { 0, uint256S("000075aef83cf2853580f8ae8ce6f8c3096cfa21d98334d6e3f95e5582ed986c")},
+//                { 5000, uint256S("00006a5338e5647872bd91de1d291365e941e14dff1939b5f16d1804d1ce61cd")}, //last PoW block
+//                { 45000, uint256S("060c6af680f6975184c7a17059f2ff4970544fcfd4104e73744fe7ab7be14cfc")},
+//                { 90000, uint256S("66fcf426b0aa6f2c9e3330cb2775e9e13c4a2b8ceedb50f8931ae0e12078ad50")},
+//                { 245000, uint256S("ed79607feeadcedf5b94f1c43df684af5106e79b0989a008a88f9dc2221cc12a")},
+//            }
+//        };
 
         chainTxData = ChainTxData{
             // Data as of block 3e76a9f460f5df039f828e3c259da03e1b4e1ec883cbf687a228e346cc457360 (height 253817)
@@ -183,6 +183,31 @@ public:
                                     COINBASE_MATURITY;
 
         consensus.nFixUTXOCacheHFHeight=100000;
+
+        //////////////////////////////////////////////////////////////// decred
+        consensus.MaxStakeDiff = 0xFFFFFFFFFFFFFFFF;
+		consensus.MinimumStakeDiff = 2 * COIN;			// 2 Coin
+
+		consensus.TicketPoolSize = 8192;
+		consensus.TicketsPerBlock = 5;
+		consensus.TicketMaturity = 256;
+
+		consensus.CoinbaseMaturity = 256;
+		consensus.StakeDiffWindowSize = 144;
+		consensus.MaxFreshStakePerBlock = 20;			// 4*TicketsPerBlock
+		consensus.StakeValidationHeight = 4096;			// ~14 days
+		consensus.StakeEnabledHeight = 256 + 256;		// CoinbaseMaturity + TicketMaturity
+		consensus.StakeBaseSigScript = CScript() << OP_0 << OP_0;
+		consensus.TicketExpiry = 40960;					// 5*TicketPoolSize
+
+		consensus.BaseSubsidy = 3119582664;				// 21m
+		consensus.MulSubsidy = 100;
+		consensus.DivSubsidy = 101;
+		consensus.SubsidyReductionInterval = 6144;
+		consensus.WorkRewardProportion = 6;
+		consensus.StakeRewardProportion = 3;
+		consensus.BlockTaxProportion = 1;
+        ////////////////////////////////////////////////////////////////
     }
 };
 
@@ -260,14 +285,14 @@ public:
         fMineBlocksOnDemand = false;
 
 
-        checkpointData = {
-            {
-                {0, uint256S("0000e803ee215c0684ca0d2f9220594d3f828617972aad66feb2ba51f5e14222")},
-                {5000, uint256S("000000302bc22f2f65995506e757fff5c824545db5413e871d57d27a0997e8a0")}, //last PoW block
-                {77000, uint256S("f41e2e8d09bca38827c23cad46ed6d434902da08415d2314d0c8ce285b1970cb")},
-                {230000, uint256S("cd17baf80fa817dd543b83897ccb1e07350019e5b812f4956f69efe855d62601")},
-            }
-        };
+//        checkpointData = {
+//            {
+//                {0, uint256S("0000e803ee215c0684ca0d2f9220594d3f828617972aad66feb2ba51f5e14222")},
+//                {5000, uint256S("000000302bc22f2f65995506e757fff5c824545db5413e871d57d27a0997e8a0")}, //last PoW block
+//                {77000, uint256S("f41e2e8d09bca38827c23cad46ed6d434902da08415d2314d0c8ce285b1970cb")},
+//                {230000, uint256S("cd17baf80fa817dd543b83897ccb1e07350019e5b812f4956f69efe855d62601")},
+//            }
+//        };
 
         chainTxData = ChainTxData{
             // Data as of block 2820e75dd90210a1dcf59efe839a1e5f212e272c6bcb7fd94e749f5e01822813 (height 239905)
@@ -283,6 +308,31 @@ public:
                                     COINBASE_MATURITY;
 
         consensus.nFixUTXOCacheHFHeight=84500;
+
+        //////////////////////////////////////////////////////////////// decred
+        consensus.MaxStakeDiff = 0xFFFFFFFFFFFFFFFF;
+		consensus.MinimumStakeDiff = 20000000;					// 0.2 COIN
+
+		consensus.TicketPoolSize = 1024;
+		consensus.TicketsPerBlock = 5;
+		consensus.TicketMaturity = 16;
+
+		consensus.CoinbaseMaturity = 16;
+		consensus.StakeDiffWindowSize = 144;
+		consensus.MaxFreshStakePerBlock = 20;					// 4*TicketsPerBlock
+		consensus.StakeValidationHeight = 768;
+		consensus.StakeEnabledHeight = 16 + 16;					// CoinbaseMaturity + TicketMaturity
+		consensus.StakeBaseSigScript = CScript() << OP_0 << OP_0;
+		consensus.TicketExpiry = 6144;							// 6*TicketPoolSize
+
+		consensus.BaseSubsidy = 25 * COIN;
+		consensus.MulSubsidy = 100;
+		consensus.DivSubsidy = 101;
+		consensus.SubsidyReductionInterval = 2048;
+		consensus.WorkRewardProportion = 6;
+		consensus.StakeRewardProportion = 3;
+		consensus.BlockTaxProportion = 1;
+        ////////////////////////////////////////////////////////////////
     }
 };
 
@@ -317,15 +367,6 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_SEGWIT].bit = 1;
         consensus.vDeployments[Consensus::DEPLOYMENT_SEGWIT].nStartTime = 0;
         consensus.vDeployments[Consensus::DEPLOYMENT_SEGWIT].nTimeout = 999999999999ULL;
-
-        //////////////////////////////////////////////////////////////// decred
-        consensus.TicketsPerBlock = 5;
-        consensus.TicketExpiry = 384;	// 6*TicketPoolSize
-        consensus.StakeEnabledHeight = 16 + 16;	// CoinbaseMaturity + TicketMaturity
-        consensus.StakeValidationHeight = 16 + (64 * 2);	// CoinbaseMaturity + TicketPoolSize*2
-
-        ////////////////////////////////////////////////////////////////
-
 
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x00");
@@ -376,6 +417,31 @@ public:
         base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x35, 0x83, 0x94};
 
         bech32_hrp = "qcrt";
+
+        //////////////////////////////////////////////////////////////// decred
+        consensus.MaxStakeDiff = 0xFFFFFFFFFFFFFFFF;
+		consensus.MinimumStakeDiff = 20000;
+
+		consensus.TicketPoolSize = 64;
+		consensus.TicketsPerBlock = 5;
+		consensus.TicketMaturity = 16;
+
+		consensus.CoinbaseMaturity = 16;
+		consensus.StakeDiffWindowSize = 8;
+		consensus.MaxFreshStakePerBlock = 20;					// 4*TicketsPerBlock
+		consensus.StakeValidationHeight = 16 + (64 * 2);		// CoinbaseMaturity + TicketPoolSize*2
+		consensus.StakeEnabledHeight = 16 + 16;					// CoinbaseMaturity + TicketMaturity
+		consensus.StakeBaseSigScript = CScript() << OP_IFDUP << OP_7;
+		consensus.TicketExpiry = 384;							// 6*TicketPoolSize
+
+		consensus.BaseSubsidy = 500 * COIN;
+		consensus.MulSubsidy = 100;
+		consensus.DivSubsidy = 101;
+		consensus.SubsidyReductionInterval = 128;
+		consensus.WorkRewardProportion = 6;
+		consensus.StakeRewardProportion = 3;
+		consensus.BlockTaxProportion = 1;
+        ////////////////////////////////////////////////////////////////
     }
 };
 
@@ -397,6 +463,31 @@ public:
         consensus.nSubsidyHalvingInterval = 750;
         consensus.nRuleChangeActivationThreshold = 558; // 75% for testchains
         consensus.nMinerConfirmationWindow = 744; // Faster than normal for regtest (744 instead of 2016)
+
+        //////////////////////////////////////////////////////////////// decred
+        consensus.MaxStakeDiff = 0xFFFFFFFFFFFFFFFF;
+		consensus.MinimumStakeDiff = 20000;
+
+		consensus.TicketPoolSize = 64;
+		consensus.TicketsPerBlock = 5;
+		consensus.TicketMaturity = 16;
+
+		consensus.CoinbaseMaturity = 16;
+		consensus.StakeDiffWindowSize = 8;
+		consensus.MaxFreshStakePerBlock = 20;					// 4*TicketsPerBlock
+		consensus.StakeValidationHeight = 16 + (64 * 2);		// CoinbaseMaturity + TicketPoolSize*2
+		consensus.StakeEnabledHeight = 16 + 16;					// CoinbaseMaturity + TicketMaturity
+		consensus.StakeBaseSigScript = CScript() << 0xDE << 0xAD << 0xBE << 0xEF;
+		consensus.TicketExpiry = 384;							// 6*TicketPoolSize
+
+		consensus.BaseSubsidy = 500 * COIN;
+		consensus.MulSubsidy = 100;
+		consensus.DivSubsidy = 101;
+		consensus.SubsidyReductionInterval = 128;
+		consensus.WorkRewardProportion = 6;
+		consensus.StakeRewardProportion = 3;
+		consensus.BlockTaxProportion = 1;
+        ////////////////////////////////////////////////////////////////
     }
 };
 

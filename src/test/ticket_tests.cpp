@@ -82,7 +82,7 @@ BOOST_AUTO_TEST_CASE(stake_lottery_num_selection){
 	BOOST_CHECK_EQUAL(lastHash.GetHex(), lastHashExp.GetHex());
 	lis.clear();
 
-	BOOST_CHECK(!findTicketIdxs(1000000000000, 5, prng, lis));
+	BOOST_CHECK(!findTicketIdxs(5294967296, 5, prng, lis));
 }
 
 BOOST_AUTO_TEST_CASE(stake_lottery_fetchwinners_error){

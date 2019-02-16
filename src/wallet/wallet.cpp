@@ -30,6 +30,7 @@
 #include <utilmoneystr.h>
 #include <wallet/fees.h>
 #include <pos.h>
+#include <wallet/test/wallet_stx_def.h>
 
 #include <assert.h>
 #include <future>
@@ -3434,7 +3435,7 @@ bool CWallet::CreateTicketPurchaseTx(CWalletTx& wtxNew, CAmount& ticketPrice, CA
 {
 	CAmount nValue = ticketPrice;
 	COutPoint senderInput;
-	uint160 addrTrue;
+	uint160 addrTrue = p2shOpTrueAddr;
     if(hasSender && coin_control.HasSelected()){
     	std::vector<COutPoint> vSenderInputs;
     	coin_control.ListSelected(vSenderInputs);
@@ -5221,7 +5222,10 @@ int CMerkleTx::GetBlocksToMaturity() const
 {
     if (!(IsCoinBase() || IsCoinStake()))
         return 0;
-    return std::max(0, (COINBASE_MATURITY+1) - GetDepthInMainChain());
+    if(TestStxDebug)
+    	return std::max(0, (Params().GetConsensus().CoinbaseMaturity+1) - GetDepthInMainChain());
+    else
+    	return std::max(0, (COINBASE_MATURITY+1) - GetDepthInMainChain());
 }
 
 

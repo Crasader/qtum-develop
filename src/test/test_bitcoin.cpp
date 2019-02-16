@@ -16,6 +16,7 @@
 #include <rpc/server.h>
 #include <rpc/register.h>
 #include <script/sigcache.h>
+#include <wallet/test/wallet_stx_def.h>
 
 #include <memory>
 
@@ -60,62 +61,66 @@ BasicTestingSetup::~BasicTestingSetup()
 TestingSetup::TestingSetup(const std::string& chainName) : BasicTestingSetup(chainName)
 {
     const CChainParams& chainparams = Params();
-        // Ideally we'd move all the RPC tests to the functional testing framework
-        // instead of unit tests, but for now we need these here.
+	// Ideally we'd move all the RPC tests to the functional testing framework
+	// instead of unit tests, but for now we need these here.
 
-        RegisterAllCoreRPCCommands(tableRPC);
-        ClearDatadirCache();
-        pathTemp = fs::temp_directory_path() / strprintf("test_bitcoin_%lu_%i", (unsigned long)GetTime(), (int)(InsecureRandRange(100000)));
-        fs::create_directories(pathTemp);
-        gArgs.ForceSetArg("-datadir", pathTemp.string());
+	RegisterAllCoreRPCCommands(tableRPC);
+	ClearDatadirCache();
+	pathTemp = fs::temp_directory_path() / strprintf("test_bitcoin_%lu_%i", (unsigned long)GetTime(), (int)(InsecureRandRange(100000)));
+	fs::create_directories(pathTemp);
+	gArgs.ForceSetArg("-datadir", pathTemp.string());
 
-        // We have to run a scheduler thread to prevent ActivateBestChain
-        // from blocking due to queue overrun.
-        threadGroup.create_thread(boost::bind(&CScheduler::serviceQueue, &scheduler));
-        GetMainSignals().RegisterBackgroundSignalScheduler(scheduler);
+	// We have to run a scheduler thread to prevent ActivateBestChain
+	// from blocking due to queue overrun.
+	threadGroup.create_thread(boost::bind(&CScheduler::serviceQueue, &scheduler));
+	GetMainSignals().RegisterBackgroundSignalScheduler(scheduler);
 
-        mempool.setSanityCheck(1.0);
-        pblocktree.reset(new CBlockTreeDB(1 << 20, true));
-        pcoinsdbview.reset(new CCoinsViewDB(1 << 23, true));
-        pcoinsTip.reset(new CCoinsViewCache(pcoinsdbview.get()));
+	mempool.setSanityCheck(1.0);
+	pblocktree.reset(new CBlockTreeDB(1 << 20, true));
+	pcoinsdbview.reset(new CCoinsViewDB(1 << 23, true));
+	pcoinsTip.reset(new CCoinsViewCache(pcoinsdbview.get()));
 
-		int64_t ndbinfoCache = (1 << 25); // 32MiB
-		int64_t nticketCache = (1 << 22); // 4MiB
-		pdbinfoview.reset(new chainStateDB(ndbinfoCache, true));
-		pliveticketview.reset(new ticketStateDB("liveticket", nticketCache, true));
-		pmissedticketview.reset(new ticketStateDB("missedticket", nticketCache, true));
-		prevokedticketview.reset(new ticketStateDB("revokedticket", nticketCache, true));
+	int64_t ndbinfoCache = (1 << 25); // 32MiB
+	int64_t nticketCache = (1 << 22); // 4MiB
+	pdbinfoview.reset(new chainStateDB(ndbinfoCache, true));
+	pliveticketview.reset(new ticketStateDB("liveticket", nticketCache, true));
+	pmissedticketview.reset(new ticketStateDB("missedticket", nticketCache, true));
+	prevokedticketview.reset(new ticketStateDB("revokedticket", nticketCache, true));
+
+	std::vector<unsigned char> vOpTrue = {(unsigned char)OP_TRUE};
+    p2shOpTrueAddr = Hash160(vOpTrue);
+    opTrueRedeemScript = CScript() << OP_DATA_1 << OP_RETURN;
 
 ////////////////////////////////////////////////////////////// qtum
-        dev::eth::Ethash::init();		
-        boost::filesystem::path pathTemp = fs::temp_directory_path() / strprintf("test_bitcoin_%lu_%i", (unsigned long)GetTime(), (int)(GetRand(100000)));
-        boost::filesystem::create_directories(pathTemp);
-        const dev::h256 hashDB(dev::sha3(dev::rlp("")));
-        globalState = std::unique_ptr<QtumState>(new QtumState(dev::u256(0), QtumState::openDB(pathTemp.string(), hashDB, dev::WithExisting::Trust), pathTemp.string(), dev::eth::BaseState::Empty));
-        dev::eth::ChainParams cp((dev::eth::genesisInfo(dev::eth::Network::qtumTestNetwork)));
-        globalSealEngine = std::unique_ptr<dev::eth::SealEngineFace>(cp.createSealEngine());
-        globalState->populateFrom(cp.genesisState);
-        globalState->setRootUTXO(uintToh256(chainparams.GenesisBlock().hashUTXORoot));
-        globalState->db().commit();
-        globalState->dbUtxo().commit();
-        pstorageresult.reset(new StorageResults(pathTemp.string()));
+	dev::eth::Ethash::init();
+	boost::filesystem::path pathTemp = fs::temp_directory_path() / strprintf("test_bitcoin_%lu_%i", (unsigned long)GetTime(), (int)(GetRand(100000)));
+	boost::filesystem::create_directories(pathTemp);
+	const dev::h256 hashDB(dev::sha3(dev::rlp("")));
+	globalState = std::unique_ptr<QtumState>(new QtumState(dev::u256(0), QtumState::openDB(pathTemp.string(), hashDB, dev::WithExisting::Trust), pathTemp.string(), dev::eth::BaseState::Empty));
+	dev::eth::ChainParams cp((dev::eth::genesisInfo(dev::eth::Network::qtumTestNetwork)));
+	globalSealEngine = std::unique_ptr<dev::eth::SealEngineFace>(cp.createSealEngine());
+	globalState->populateFrom(cp.genesisState);
+	globalState->setRootUTXO(uintToh256(chainparams.GenesisBlock().hashUTXORoot));
+	globalState->db().commit();
+	globalState->dbUtxo().commit();
+	pstorageresult.reset(new StorageResults(pathTemp.string()));
 //////////////////////////////////////////////////////////////
 
-        if (!LoadGenesisBlock(chainparams)) {
-            throw std::runtime_error("LoadGenesisBlock failed.");
-        }
-        {
-            CValidationState state;
-            if (!ActivateBestChain(state, chainparams)) {
-                throw std::runtime_error("ActivateBestChain failed.");
-            }
-        }
-        nScriptCheckThreads = 3;
-        for (int i=0; i < nScriptCheckThreads-1; i++)
-            threadGroup.create_thread(&ThreadScriptCheck);
-        g_connman = std::unique_ptr<CConnman>(new CConnman(0x1337, 0x1337)); // Deterministic randomness for tests.
-        connman = g_connman.get();
-        peerLogic.reset(new PeerLogicValidation(connman, scheduler));
+	if (!LoadGenesisBlock(chainparams)) {
+		throw std::runtime_error("LoadGenesisBlock failed.");
+	}
+	{
+		CValidationState state;
+		if (!ActivateBestChain(state, chainparams)) {
+			throw std::runtime_error("ActivateBestChain failed.");
+		}
+	}
+	nScriptCheckThreads = 3;
+	for (int i=0; i < nScriptCheckThreads-1; i++)
+		threadGroup.create_thread(&ThreadScriptCheck);
+	g_connman = std::unique_ptr<CConnman>(new CConnman(0x1337, 0x1337)); // Deterministic randomness for tests.
+	connman = g_connman.get();
+	peerLogic.reset(new PeerLogicValidation(connman, scheduler));
 }
 
 TestingSetup::~TestingSetup()
@@ -154,12 +159,12 @@ TestChain100Setup::TestChain100Setup() : TestingSetup(CBaseChainParams::UNITTEST
     // Generate a 100-block chain:
     coinbaseKey.MakeNewKey(true);
     CScript scriptPubKey = CScript() <<  ToByteVector(coinbaseKey.GetPubKey()) << OP_CHECKSIG;
-    for (int i = 0; i < COINBASE_MATURITY; i++)
-    {
-        std::vector<CMutableTransaction> noTxns;
-        CBlock b = CreateAndProcessBlock(noTxns, scriptPubKey);
-        coinbaseTxns.push_back(*b.vtx[0]);
-    }
+
+	std::vector<CMutableTransaction> noTxns;
+	for (int i = 0; i < COINBASE_MATURITY; i++){
+		CBlock b = CreateAndProcessBlock(noTxns, scriptPubKey);
+		coinbaseTxns.push_back(*b.vtx[0]);
+	}
 }
 
 //
@@ -197,24 +202,27 @@ TestChain100Setup::~TestChain100Setup()
 {
 }
 
-TestChain100SetupTemp::TestChain100SetupTemp() : TestingSetup(CBaseChainParams::UNITTEST)
+TestChain100SetupTmp::TestChain100SetupTmp() : TestingSetup(CBaseChainParams::UNITTEST)
 {
+	setTestFlag(true);
     // CreateAndProcessBlock() does not support building SegWit blocks, so don't activate in these tests.
     // TODO: fix the code to support SegWit blocks.
     UpdateVersionBitsParameters(Consensus::DEPLOYMENT_SEGWIT, 0, Consensus::BIP9Deployment::NO_TIMEOUT);
     // Generate a 100-block chain:
     coinbaseKey.MakeNewKey(true);
     CScript scriptPubKey = CScript() <<  ToByteVector(coinbaseKey.GetPubKey()) << OP_CHECKSIG;
-    for (int i = 0; i < COINBASE_MATURITY; i++)
-    {
-        std::vector<CMutableTransaction> noTxns;
-        std::vector<CMutableTransaction> nosTxns;
-        CBlock b = CreateAndProcessBlock(noTxns, nosTxns, scriptPubKey);
-        coinbaseTxns.push_back(*b.vtx[0]);
-    }
+	const CChainParams chainparams = Params();
+	for (int i = 0; i < chainparams.GetConsensus().CoinbaseMaturity; i++){
+		std::vector<CMutableTransaction> noTxns;
+		std::vector<CMutableTransaction> noStxns;
+		CBlock b = CreateAndProcessBlock(noTxns, noStxns, scriptPubKey);
+		coinbaseTxns.push_back(*b.vtx[0]);
+	}
 }
 
-CBlock TestChain100SetupTemp::CreateAndProcessBlock(const std::vector<CMutableTransaction>& txns, const std::vector<CMutableTransaction>& stxns, const CScript& scriptPubKey){
+
+
+CBlock TestChain100SetupTmp::CreateAndProcessBlock(const std::vector<CMutableTransaction>& txns, const std::vector<CMutableTransaction>& stxns, const CScript& scriptPubKey){
     const CChainParams& chainparams = Params();
     std::unique_ptr<CBlockTemplate> pblocktemplate = BlockAssembler(chainparams).CreateNewBlock(scriptPubKey);
     CBlock& block = pblocktemplate->block;
@@ -241,7 +249,7 @@ CBlock TestChain100SetupTemp::CreateAndProcessBlock(const std::vector<CMutableTr
     return result;
 }
 
-TestChain100SetupTemp::~TestChain100SetupTemp()
+TestChain100SetupTmp::~TestChain100SetupTmp()
 {
 }
 

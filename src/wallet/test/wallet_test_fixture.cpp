@@ -3,6 +3,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <wallet/test/wallet_test_fixture.h>
+#include <wallet/test/wallet_stx_def.h>
 
 #include <rpc/server.h>
 #include <wallet/db.h>

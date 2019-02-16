@@ -102,11 +102,12 @@ BITCOIN_TESTS += \
   wallet/test/wallet_test_fixture.h \
   wallet/test/accounting_tests.cpp \
   wallet/test/wallet_tests.cpp \
+  wallet/test/wallet_stx_tests.cpp \
   wallet/test/crypto_tests.cpp
 endif
 
 test_test_qtum_SOURCES = $(BITCOIN_TESTS) $(JSON_TEST_FILES) $(RAW_TEST_FILES)
-test_test_qtum_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES) -I$(builddir)/test/ $(TESTDEFS) $(EVENT_CFLAGS) -O0
+test_test_qtum_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES) -I$(builddir)/test/ $(TESTDEFS) $(EVENT_CFLAGS) -Od
 test_test_qtum_LDADD =
 if ENABLE_WALLET
 test_test_qtum_LDADD += $(LIBBITCOIN_WALLET)
