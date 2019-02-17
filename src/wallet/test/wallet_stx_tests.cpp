@@ -68,7 +68,7 @@ public:
     {
     	const CChainParams& chainparams = Params();
     	CBlockIndex* pindexPrev = chainActive.Tip();
-    	CAmount ticketPrice;
+    	CAmount ticketPrice = 0;
         estimateNextStakeDifficultyV2(chainparams.GetConsensus(), pindexPrev, ticketPrice);
 
         CWalletTx wtx;

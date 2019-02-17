@@ -3440,16 +3440,17 @@ bool CWallet::CreateTicketPurchaseTx(CWalletTx& wtxNew, CAmount& ticketPrice, CA
     	std::vector<COutPoint> vSenderInputs;
     	coin_control.ListSelected(vSenderInputs);
     	senderInput=vSenderInputs[0];
+        auto it = mapWallet.find(senderInput.hash);
+        if(it != mapWallet.end()){
+        	const CScript senderScript = it->second.tx->vout[senderInput.n].scriptPubKey;
+        	if(!GetPubkHashfromP2PKH(senderScript, addrTrue)){
+        		return error("%s: GetPubkHashfromP2PKH parse pubkhash failed", __func__);
+        	}
+        } else {
+        	return error("%s: utxo(txid: %s, n: %d) not in this wallet", __func__, senderInput.hash.GetHex(), senderInput.n);
+        }
     }
-    auto it = mapWallet.find(senderInput.hash);
-    if(it != mapWallet.end()){
-    	const CScript senderScript = it->second.tx->vout[senderInput.n].scriptPubKey;
-    	if(!GetPubkHashfromP2PKH(senderScript, addrTrue)){
-    		return error("%s: GetPubkHashfromP2PKH parse pubkhash failed", __func__);
-    	}
-    } else {
-    	return error("%s: utxo(txid: %s, n: %d) not in this wallet", __func__, senderInput.hash.GetHex(), senderInput.n);
-    }
+
     wtxNew.fTimeReceivedIsTxTime = true;
     wtxNew.BindWallet(this);
     CMutableTransaction txNew;
@@ -3502,6 +3503,18 @@ bool CWallet::CreateTicketPurchaseTx(CWalletTx& wtxNew, CAmount& ticketPrice, CA
 					{
 						strFailReason = _("Insufficient funds");
 						return false;
+					}
+					if(!hasSender && addrTrue == p2shOpTrueAddr){
+				    	senderInput=setCoins.begin()->outpoint;
+				        auto it = mapWallet.find(senderInput.hash);
+				        if(it != mapWallet.end()){
+				        	const CScript senderScript = it->second.tx->vout[senderInput.n].scriptPubKey;
+				        	if(!GetPubkHashfromP2PKH(senderScript, addrTrue)){
+				        		return error("%s: GetPubkHashfromP2PKH parse pubkhash failed", __func__);
+				        	}
+				        } else {
+				        	return error("%s: utxo(txid: %s, n: %d) not in this wallet", __func__, senderInput.hash.GetHex(), senderInput.n);
+				        }
 					}
 				}
 
