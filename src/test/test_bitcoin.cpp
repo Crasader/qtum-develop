@@ -88,7 +88,7 @@ TestingSetup::TestingSetup(const std::string& chainName) : BasicTestingSetup(cha
 	prevokedticketview.reset(new ticketStateDB("revokedticket", nticketCache, true));
 
 	std::vector<unsigned char> vOpTrue = {(unsigned char)OP_TRUE};
-    p2shOpTrueAddr = Hash160(vOpTrue);
+    p2shOpTrueAddr = CKeyID(Hash160(vOpTrue));
     opTrueRedeemScript = CScript() << OP_DATA_1 << OP_RETURN;
 
 ////////////////////////////////////////////////////////////// qtum

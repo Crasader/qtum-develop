@@ -477,19 +477,19 @@ CScript GetScriptForWitness(const CScript& redeemscript)
 
 //////////////////////////////////////////////////////////////// decred
 
-CScript PayToSStx(uint160& stakeaddress){
+CScript PayToSStx(CKeyID& stakeaddress){
 	return CScript() << OP_SSTX << OP_DUP << OP_HASH160 << ToByteVector(stakeaddress) << OP_EQUALVERIFY << OP_CHECKSIG;
 }
 
-CScript PayToSStxChange(uint160& stakeaddress){
+CScript PayToSStxChange(CKeyID& stakeaddress){
 	return CScript() << OP_SSTXCHANGE << OP_DUP << OP_HASH160 << ToByteVector(stakeaddress) << OP_EQUALVERIFY << OP_CHECKSIG;
 }
 
-CScript PayToSSGen(uint160& stakeaddress){
+CScript PayToSSGen(CKeyID& stakeaddress){
 	return CScript() << OP_SSGEN << OP_DUP << OP_HASH160 << ToByteVector(stakeaddress) << OP_EQUALVERIFY << OP_CHECKSIG;
 }
 
-CScript PayToSSRtx(uint160& stakeaddress){
+CScript PayToSSRtx(CKeyID& stakeaddress){
 	return CScript() << OP_SSRTX << OP_DUP << OP_HASH160 << ToByteVector(stakeaddress) << OP_EQUALVERIFY << OP_CHECKSIG;
 }
 
@@ -513,7 +513,7 @@ CScript voteBitsScript(uint16_t bits){
 }
 
 
-CScript PurchaseCommitmentScript(uint160& address, CAmount&  amount, CAmount& voteFeeLimit, CAmount& revocationFeeLimit){
+CScript PurchaseCommitmentScript(CKeyID& address, CAmount&  amount, CAmount& voteFeeLimit, CAmount& revocationFeeLimit){
 	// The limits are defined in terms of the closest base 2 exponent and
 	// a bit that must be set to specify the limit is to be applied.  The
 	// vote fee exponent is in the bottom 8 bits, while the revocation fee
@@ -544,7 +544,7 @@ CScript PurchaseCommitmentScript(uint160& address, CAmount&  amount, CAmount& vo
 	return script;
 }
 
-bool GetPubkHashfromScript(const CScript& senderScript, uint160& addrOut){
+bool GetPubkHashfromScript(const CScript& senderScript, CKeyID& addrOut){
     std::vector<valtype> vSolutions;
     txnouttype whichType;
     if (!Solver(senderScript, whichType, vSolutions)){
@@ -552,9 +552,9 @@ bool GetPubkHashfromScript(const CScript& senderScript, uint160& addrOut){
     }
     if(whichType == TX_PUBKEYHASH){
         // convert to pay to public key type
-    	addrOut.write(reinterpret_cast<const char*>(vSolutions[0].data()));
+    	addrOut = CKeyID(uint160(vSolutions[0]));
     } else if(whichType == TX_PUBKEY){
-//    	addrOut = CPubKey(vSolutions[0]).GetID();
+    	addrOut = CPubKey(vSolutions[0]).GetID();
     } else {
     	return error("%s: other format not support, will fix it further", __func__);
     }

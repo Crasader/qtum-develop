@@ -207,22 +207,22 @@ CScript GetScriptForWitness(const CScript& redeemscript);
 // PayToSStx creates a new script to pay a transaction output to a script hash or
 // public key hash, but tags the output with OP_SSTX. For use in constructing
 // valid SStxs.
-CScript PayToSStx(uint160& stakeaddress);
+CScript PayToSStx(CKeyID& stakeaddress);
 
 // PayToSStxChange creates a new script to pay a transaction output to a
 // public key hash, but tags the output with OP_SSTXCHANGE. For use in constructing
 // valid SStxs.
-CScript PayToSStxChange(uint160& stakeaddress);
+CScript PayToSStxChange(CKeyID& stakeaddress);
 
 // PayToSSGen creates a new script to pay a transaction output to a public key
 // hash or script hash, but tags the output with OP_SSGEN. For use in constructing
 // valid SSGen txs.
-CScript PayToSSGen(uint160& stakeaddress);
+CScript PayToSSGen(CKeyID& stakeaddress);
 
 // PayToSSRtx creates a new script to pay a transaction output to a
 // public key hash, but tags the output with OP_SSRTX. For use in constructing
 // valid SSRtx.
-CScript PayToSSRtx(uint160& stakeaddress);
+CScript PayToSSRtx(CKeyID& stakeaddress);
 
 // voteBlockScript returns a standard provably-pruneable OP_RETURN script
 // suitable for use in a vote tx (ssgen) given the block to vote on.
@@ -241,9 +241,9 @@ CScript voteBitsScript(uint16_t bits);
 // PurchaseCommitmentScript returns a standard provably-pruneable OP_RETURN
 // commitment script suitable for use in a ticket purchase tx (sstx) using the
 // provided target address, amount, and fee limits.
-CScript PurchaseCommitmentScript(uint160& address, CAmount&  amount, CAmount& voteFeeLimit, CAmount& revocationFeeLimit);
+CScript PurchaseCommitmentScript(CKeyID& address, CAmount&  amount, CAmount& voteFeeLimit, CAmount& revocationFeeLimit);
 
-bool GetPubkHashfromScript(const CScript& script, uint160& addrOut);
+bool GetPubkHashfromScript(const CScript& script, CKeyID& addrOut);
 
 ////////////////////////////////////////////////////////////////
 

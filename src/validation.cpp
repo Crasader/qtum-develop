@@ -340,7 +340,7 @@ std::unique_ptr<ticketStateDB> prevokedticketview;
 std::unique_ptr<CBlockTreeDB> pblocktree;
 std::unique_ptr<StorageResults> pstorageresult;
 
-uint160 p2shOpTrueAddr; // todo temple do this
+CKeyID p2shOpTrueAddr; // todo temple do this
 CScript opTrueRedeemScript;
 
 enum FlushStateMode {

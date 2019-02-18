@@ -3435,7 +3435,7 @@ bool CWallet::CreateTicketPurchaseTx(CWalletTx& wtxNew, CAmount& ticketPrice, CA
 {
 	CAmount nValue = ticketPrice;
 	COutPoint senderInput;
-	uint160 addrTrue = p2shOpTrueAddr;
+	CKeyID addrTrue = p2shOpTrueAddr;
     if(hasSender && coin_control.HasSelected()){
     	std::vector<COutPoint> vSenderInputs;
     	coin_control.ListSelected(vSenderInputs);
@@ -3649,7 +3649,7 @@ bool CWallet::CreateVoteTx(CWalletTx& wtxNew, CReserveKey& reservekey, CBlockInd
 {
 	CMutableTransaction txNew;
 
-	uint160 addrTrue;
+	CKeyID addrTrue;
 	const CScript senderScript = ticketTx.vout[0].scriptPubKey;
 	if(!GetPubkHashfromScript(senderScript, addrTrue)){
 		return error("%s: GetPubkHashfromP2PKH parse pubkhash failed", __func__);
@@ -3709,7 +3709,7 @@ bool CWallet::CreateRevocationTx(CWalletTx& wtxNew, CReserveKey& reservekey, CTr
 {
 	CMutableTransaction txNew;
 
-	uint160 addrTrue;
+	CKeyID addrTrue;
 	const CScript senderScript = ticketTx.vout[0].scriptPubKey;
 	if(!GetPubkHashfromScript(senderScript, addrTrue)){
 		return error("%s: GetPubkHashfromP2PKH parse pubkhash failed", __func__);
