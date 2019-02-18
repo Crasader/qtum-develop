@@ -243,7 +243,7 @@ CScript voteBitsScript(uint16_t bits);
 // provided target address, amount, and fee limits.
 CScript PurchaseCommitmentScript(uint160& address, CAmount&  amount, CAmount& voteFeeLimit, CAmount& revocationFeeLimit);
 
-bool GetPubkHashfromP2PKH(const CScript& script, uint160& addrOut);
+bool GetPubkHashfromScript(const CScript& script, uint160& addrOut);
 
 ////////////////////////////////////////////////////////////////
 

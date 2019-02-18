@@ -335,19 +335,26 @@ public:
         nSequenceId = 0;
         nTimeMax = 0;
 
-        nVersion       = 0;
-        hashMerkleRoot = uint256();
-        nTime          = 0;
-        nBits          = 0;
-        nNonce         = 0;
-        hashStateRoot  = uint256(); // qtum
-        hashUTXORoot   = uint256(); // qtum
+        nVersion       	= 0;
+        hashMerkleRoot 	= uint256();
+        nTime          	= 0;
+        nBits          	= 0;
+        sBits		   	= 0;			//decred
+        nNonce         	= 0;
+        hashStateRoot  	= uint256();	// qtum
+        hashUTXORoot  	= uint256(); 	// qtum
         vchBlockSig.clear();
-        nStakeModifier = uint256();
+        nStakeModifier 	= uint256();
         hashProof = uint256();
         prevoutStake.SetNull();
-        nMoneySupply = 0;
-        poolSize = 0;	// decred
+        nMoneySupply   	= 0;
+        poolSize	   	= 0;			// decred
+        freshStake		= 0;			// decred
+        newTickets.clear();				// decred
+        ticketsVoted.clear();			// decred
+        ticketsRevoked.clear();			// decred
+        votes.clear();					// decred
+        stakeNode.reset();				// decred
     }
 
     CBlockIndex()
@@ -359,18 +366,21 @@ public:
     {
         SetNull();
 
-        nVersion       = block.nVersion;
-        hashMerkleRoot = block.hashMerkleRoot;
-        nTime          = block.nTime;
-        nBits          = block.nBits;
-        nNonce         = block.nNonce;
-        nMoneySupply   = 0;
-        hashStateRoot  = block.hashStateRoot; // qtum
-        hashUTXORoot   = block.hashUTXORoot; // qtum
-        nStakeModifier = uint256();
-        hashProof = uint256(); 
-        prevoutStake   = block.prevoutStake; // qtum
-        vchBlockSig    = block.vchBlockSig; // qtum
+        nVersion       	= block.nVersion;
+        hashMerkleRoot 	= block.hashMerkleRoot;
+        nTime          	= block.nTime;
+        nBits          	= block.nBits;
+        sBits			= block.sBits;				//decred
+        nNonce         	= block.nNonce;
+        nMoneySupply   	= 0;
+        hashStateRoot  	= block.hashStateRoot; 		// qtum
+        hashUTXORoot   	= block.hashUTXORoot; 		// qtum
+        nStakeModifier 	= uint256();
+        hashProof 		= uint256();
+        prevoutStake   	= block.prevoutStake; 		// qtum
+        vchBlockSig    	= block.vchBlockSig; 		// qtum
+        poolSize		= block.PoolSize;			// decred
+        freshStake		= block.FreshStake;			// decred
     }
 
     CDiskBlockPos GetBlockPos() const {
@@ -394,17 +404,20 @@ public:
     CBlockHeader GetBlockHeader() const
     {
         CBlockHeader block;
-        block.nVersion       = nVersion;
+        block.nVersion       	= nVersion;
         if (pprev)
             block.hashPrevBlock = pprev->GetBlockHash();
-        block.hashMerkleRoot = hashMerkleRoot;
-        block.nTime          = nTime;
-        block.nBits          = nBits;
-        block.nNonce         = nNonce;
-        block.hashStateRoot  = hashStateRoot; // qtum
-        block.hashUTXORoot   = hashUTXORoot; // qtum
-        block.vchBlockSig    = vchBlockSig;
-        block.prevoutStake   = prevoutStake;
+        block.hashMerkleRoot 	= hashMerkleRoot;
+        block.nTime          	= nTime;
+        block.nBits          	= nBits;
+        block.sBits				= sBits;			// decred
+        block.nNonce         	= nNonce;
+        block.hashStateRoot  	= hashStateRoot;	// qtum
+        block.hashUTXORoot   	= hashUTXORoot; 	// qtum
+        block.vchBlockSig    	= vchBlockSig;
+        block.prevoutStake   	= prevoutStake;
+        block.PoolSize			= poolSize;			// decred
+        block.FreshStake		= freshStake;		// decred
         return block;
     }
 

@@ -2,6 +2,10 @@
 #include <primitives/transaction.h>
 #include <policy/policy.h>
 
+// TODO, delete follow dependencies
+#include <wallet/test/wallet_stx_def.h>
+#include <chainparams.h>
+
 /** The maximum allowed size for a serialized block, in bytes (only for buffer size limits) */
 unsigned int dgpMaxBlockSerSize = 8000000;
 /** The maximum allowed weight for a block, see BIP 141 (network rule) */
@@ -16,6 +20,8 @@ unsigned int dgpMaxProtoMsgLength = 8000000;
 
 unsigned int dgpMaxTxSigOps = 16000;
 
+int COINBASE_MATURITY = 500;
+
 void updateBlockSizeParams(unsigned int newBlockSize){
     unsigned int newSizeForParams=WITNESS_SCALE_FACTOR*newBlockSize;
     dgpMaxBlockSerSize=newSizeForParams;
@@ -24,3 +30,12 @@ void updateBlockSizeParams(unsigned int newBlockSize){
     dgpMaxTxSigOps = (unsigned int)(dgpMaxBlockSigOps/5);
     dgpMaxProtoMsgLength=newSizeForParams;
 }
+
+//////////////////////////////////////////////////////////////// decred
+void changeCoinbaseMaturity(){
+	if(TestStxDebug){
+		COINBASE_MATURITY = Params().GetConsensus().CoinbaseMaturity;
+	}
+}
+
+////////////////////////////////////////////////////////////////

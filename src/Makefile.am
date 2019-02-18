@@ -180,6 +180,7 @@ BITCOIN_CORE_H = \
   wallet/wallet.h \
   wallet/walletdb.h \
   wallet/walletutil.h \
+  wallet/test/wallet_stx_def.h \
   warnings.h \
   zmq/zmqabstractnotifier.h \
   zmq/zmqconfig.h\
@@ -246,6 +247,7 @@ libbitcoin_server_a_SOURCES = \
   qtum/qtumDGP.cpp \
   consensus/consensus.cpp \
   qtum/storageresults.cpp \
+  wallet/test/wallet_stx_def.cpp \
   $(BITCOIN_CORE_H)
 
 if ENABLE_ZMQ
@@ -274,8 +276,6 @@ libbitcoin_wallet_a_SOURCES = \
   wallet/walletdb.cpp \
   wallet/walletutil.cpp \
   pos.cpp \
-  wallet/test/wallet_stx_def.cpp \
-  wallet_test/wallet_stx_def.h \
   $(BITCOIN_CORE_H)
 
 # crypto primitives library
@@ -691,7 +691,7 @@ qtum_cli_LDADD += $(BOOST_LIBS) $(SSL_LIBS) $(CRYPTO_LIBS) $(EVENT_LIBS)
 #
 
 # bitcoin-tx binary #
-qtum_tx_SOURCES = bitcoin-tx.cpp consensus/consensus.cpp
+qtum_tx_SOURCES = bitcoin-tx.cpp consensus/consensus.cpp wallet/test/wallet_stx_def.cpp
 qtum_tx_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
 qtum_tx_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 qtum_tx_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)

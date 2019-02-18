@@ -37,6 +37,8 @@
 # error "Qtum cannot be compiled without assertions."
 #endif
 
+unsigned int DEFAULT_HEADER_SPAM_FILTER_MAX_SIZE = (unsigned int)COINBASE_MATURITY;
+
 std::atomic<int64_t> nTimeBestReceived(0); // Used only to inform the wallet of when we last received a block
 
 struct IteratorComparator

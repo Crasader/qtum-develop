@@ -27,6 +27,7 @@
 #include <utilmoneystr.h>
 #include <validationinterface.h>
 #include <wallet/wallet.h>
+#include <wallet/test/wallet_stx_def.h>
 
 #include <algorithm>
 #include <queue>
@@ -170,6 +171,12 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
         UpdateTime(pblock, chainparams.GetConsensus(), pindexPrev);
     pblock->nBits = GetNextWorkRequired(pindexPrev, pblock, chainparams.GetConsensus(),fProofOfStake);
 
+    // TestStxDebug, get current ticket price and update the block
+	int64_t sbits;
+	estimateNextStakeDifficultyV2(chainparams.GetConsensus(), pindexPrev, sbits);
+	pblock->sBits = sbits;
+
+
     const int64_t nMedianTimePast = pindexPrev->GetMedianTimePast();
 
     nLockTimeCutoff = (STANDARD_LOCKTIME_VERIFY_FLAGS & LOCKTIME_MEDIAN_TIME_PAST)
@@ -281,20 +288,6 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
 
     return std::move(pblocktemplate);
 }
-
-//////////////////////////////////////////////////////////////// decred
-bool BlockAssembler::CreateNewBlockTemp(std::unique_ptr<CBlockTemplate> blocktemplateUP){
-
-	CBlockIndex* pindexPrev = chainActive.Tip();
-
-    int64_t sbits;
-    estimateNextStakeDifficultyV2(chainparams.GetConsensus(), pindexPrev, sbits);
-    pblock->sBits = sbits;
-
-	return true;
-}
-
-//////////////////////////////////////////////////////////////// decred
 
 std::unique_ptr<CBlockTemplate> BlockAssembler::CreateEmptyBlock(const CScript& scriptPubKeyIn, bool fMineWitnessTx, bool fProofOfStake, int64_t* pTotalFees, int32_t nTime)
 {

@@ -544,7 +544,7 @@ CScript PurchaseCommitmentScript(uint160& address, CAmount&  amount, CAmount& vo
 	return script;
 }
 
-bool GetPubkHashfromP2PKH(const CScript& senderScript, uint160& addrOut){
+bool GetPubkHashfromScript(const CScript& senderScript, uint160& addrOut){
     std::vector<valtype> vSolutions;
     txnouttype whichType;
     if (!Solver(senderScript, whichType, vSolutions)){
@@ -553,6 +553,8 @@ bool GetPubkHashfromP2PKH(const CScript& senderScript, uint160& addrOut){
     if(whichType == TX_PUBKEYHASH){
         // convert to pay to public key type
     	addrOut.write(reinterpret_cast<const char*>(vSolutions[0].data()));
+    } else if(whichType == TX_PUBKEY){
+//    	addrOut = CPubKey(vSolutions[0]).GetID();
     } else {
     	return error("%s: other format not support, will fix it further", __func__);
     }

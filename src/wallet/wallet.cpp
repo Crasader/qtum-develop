@@ -3443,7 +3443,7 @@ bool CWallet::CreateTicketPurchaseTx(CWalletTx& wtxNew, CAmount& ticketPrice, CA
         auto it = mapWallet.find(senderInput.hash);
         if(it != mapWallet.end()){
         	const CScript senderScript = it->second.tx->vout[senderInput.n].scriptPubKey;
-        	if(!GetPubkHashfromP2PKH(senderScript, addrTrue)){
+        	if(!GetPubkHashfromScript(senderScript, addrTrue)){
         		return error("%s: GetPubkHashfromP2PKH parse pubkhash failed", __func__);
         	}
         } else {
@@ -3508,10 +3508,11 @@ bool CWallet::CreateTicketPurchaseTx(CWalletTx& wtxNew, CAmount& ticketPrice, CA
 				    	senderInput=setCoins.begin()->outpoint;
 				        auto it = mapWallet.find(senderInput.hash);
 				        if(it != mapWallet.end()){
-				        	const CScript senderScript = it->second.tx->vout[senderInput.n].scriptPubKey;
-				        	if(!GetPubkHashfromP2PKH(senderScript, addrTrue)){
-				        		return error("%s: GetPubkHashfromP2PKH parse pubkhash failed", __func__);
-				        	}
+				        	const CTransactionRef senderTxMock = it->second.tx;
+							const CScript senderScript = senderTxMock->vout[senderInput.n].scriptPubKey;
+							if(!GetPubkHashfromScript(senderScript, addrTrue)){
+								return error("%s: GetPubkHashfromP2PKH parse pubkhash failed", __func__);
+							}
 				        } else {
 				        	return error("%s: utxo(txid: %s, n: %d) not in this wallet", __func__, senderInput.hash.GetHex(), senderInput.n);
 				        }
@@ -3650,7 +3651,7 @@ bool CWallet::CreateVoteTx(CWalletTx& wtxNew, CReserveKey& reservekey, CBlockInd
 
 	uint160 addrTrue;
 	const CScript senderScript = ticketTx.vout[0].scriptPubKey;
-	if(!GetPubkHashfromP2PKH(senderScript, addrTrue)){
+	if(!GetPubkHashfromScript(senderScript, addrTrue)){
 		return error("%s: GetPubkHashfromP2PKH parse pubkhash failed", __func__);
 	}
 
@@ -3710,7 +3711,7 @@ bool CWallet::CreateRevocationTx(CWalletTx& wtxNew, CReserveKey& reservekey, CTr
 
 	uint160 addrTrue;
 	const CScript senderScript = ticketTx.vout[0].scriptPubKey;
-	if(!GetPubkHashfromP2PKH(senderScript, addrTrue)){
+	if(!GetPubkHashfromScript(senderScript, addrTrue)){
 		return error("%s: GetPubkHashfromP2PKH parse pubkhash failed", __func__);
 	}
 
@@ -5235,10 +5236,7 @@ int CMerkleTx::GetBlocksToMaturity() const
 {
     if (!(IsCoinBase() || IsCoinStake()))
         return 0;
-    if(TestStxDebug)
-    	return std::max(0, (Params().GetConsensus().CoinbaseMaturity+1) - GetDepthInMainChain());
-    else
-    	return std::max(0, (COINBASE_MATURITY+1) - GetDepthInMainChain());
+    return std::max(0, (COINBASE_MATURITY+1) - GetDepthInMainChain());
 }
 
 

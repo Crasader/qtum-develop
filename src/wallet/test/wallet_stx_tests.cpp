@@ -43,7 +43,6 @@ class ListCoinsTestingSetup : public TestChain100SetupTmp
 public:
     ListCoinsTestingSetup()
     {
-    	setTestFlag(true);
         CreateAndProcessBlock({}, {}, GetScriptForRawPubKey(coinbaseKey.GetPubKey()));
         ::bitdb.MakeMock();
         g_address_type = OUTPUT_TYPE_DEFAULT;

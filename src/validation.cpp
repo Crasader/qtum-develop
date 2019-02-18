@@ -43,6 +43,7 @@
 #include <utilstrencodings.h>
 #include <validationinterface.h>
 #include <warnings.h>
+#include <wallet/test/wallet_stx_def.h>
 
 #include <serialize.h>
 #include <pubkey.h>
@@ -4992,6 +4993,14 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, CValidationSta
     if (block.nBits != GetNextWorkRequired(pindexPrev, &block, consensusParams,block.IsProofOfStake()))
         return state.DoS(100, false, REJECT_INVALID, "bad-diffbits", false, "incorrect difficulty value");
 
+    // TestStxDebug, Check ticketprice of work
+    if(TestStxDebug){
+    	int64_t nextStakeDiff;
+    	estimateNextStakeDifficultyV2(params.GetConsensus(), pindexPrev, nextStakeDiff);
+    	if (block.sBits != nextStakeDiff)
+    		return state.DoS(100, false, REJECT_INVALID, "bad-ticketprice", false, "incorrect ticketprice value");
+    }
+
     // Check against checkpoints
     if (fCheckpointsEnabled) {
         // Don't accept any forks from the main chain prior to last checkpoint.
@@ -5275,8 +5284,9 @@ bool CChainState::AcceptBlockHeader(const CBlockHeader& block, CValidationState&
         if(block.IsProofOfStake())
         {
             // Reject proof of stake before height COINBASE_MATURITY
-            if (nHeight < COINBASE_MATURITY)
+        	if (nHeight < COINBASE_MATURITY)
                 return state.DoS(100, false, REJECT_INVALID, "reject-pos", false, strprintf("reject proof-of-stake at height %d", nHeight));
+
 
             // Check coin stake timestamp
             if(!CheckCoinStakeTimestamp(block.nTime))
@@ -5488,7 +5498,7 @@ bool CheckCanonicalBlockSignature(const CBlockHeader* pblock)
     return ret;
 }
 
-bool CheckProofOfStake(const CBlock& block, const Consensus::Params& consensusParams){
+bool CheckTicketPrice(const CBlock& block, const Consensus::Params& consensusParams){
     // check ticketprice
     CValidationStakeState stakeState;
 

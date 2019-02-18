@@ -205,6 +205,7 @@ TestChain100Setup::~TestChain100Setup()
 TestChain100SetupTmp::TestChain100SetupTmp() : TestingSetup(CBaseChainParams::UNITTEST)
 {
 	setTestFlag(true);
+	changeCoinbaseMaturity();
     // CreateAndProcessBlock() does not support building SegWit blocks, so don't activate in these tests.
     // TODO: fix the code to support SegWit blocks.
     UpdateVersionBitsParameters(Consensus::DEPLOYMENT_SEGWIT, 0, Consensus::BIP9Deployment::NO_TIMEOUT);
