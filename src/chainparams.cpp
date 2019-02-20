@@ -468,15 +468,15 @@ public:
         consensus.MaxStakeDiff = 0xFFFFFFFFFFFFFFFF;
 		consensus.MinimumStakeDiff = 20000;
 
-		consensus.TicketPoolSize = 64;
+		consensus.TicketPoolSize = 64 / 4;
 		consensus.TicketsPerBlock = 5;
-		consensus.TicketMaturity = 16;
+		consensus.TicketMaturity = 16 / 4;
 
-		consensus.CoinbaseMaturity = 16;
-		consensus.StakeDiffWindowSize = 8;
-		consensus.MaxFreshStakePerBlock = 20;					// 4*TicketsPerBlock
-		consensus.StakeValidationHeight = 16 + (64 * 2);		// CoinbaseMaturity + TicketPoolSize*2
-		consensus.StakeEnabledHeight = 16 + 16;					// CoinbaseMaturity + TicketMaturity
+		consensus.CoinbaseMaturity = 16 / 4;
+		consensus.StakeDiffWindowSize = 8 / 4;
+		consensus.MaxFreshStakePerBlock = 20 / 4;					// 4*TicketsPerBlock
+		consensus.StakeValidationHeight = (16 + (64 * 2)) / 4;		// CoinbaseMaturity + TicketPoolSize*2
+		consensus.StakeEnabledHeight = (16 + 16) /4;					// CoinbaseMaturity + TicketMaturity
 		consensus.StakeBaseSigScript = CScript() << 0xDE << 0xAD << 0xBE << 0xEF;
 		consensus.TicketExpiry = 384;							// 6*TicketPoolSize
 

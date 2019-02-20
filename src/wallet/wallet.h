@@ -20,6 +20,8 @@
 #include <wallet/rpcwallet.h>
 #include <consensus/params.h>
 
+#include <stake/staketx.h>
+
 #include <algorithm>
 #include <atomic>
 #include <map>
@@ -723,15 +725,20 @@ private:
     bool fBroadcastTransactions;
 
     TxSpends mapTxSpends;
+    TxSpends mapStxSpends;
     void AddToSpends(const COutPoint& outpoint, const uint256& wtxid);
+    void AddToSpendsStx(const COutPoint& outpoint, const uint256& wtxid);
     void RemoveFromSpends(const COutPoint& outpoint, const uint256& wtxid);
     void AddToSpends(const uint256& wtxid);
+    void AddToSpendsStx(const uint256& wtxid, TxType txtype);
     void RemoveFromSpends(const uint256& wtxid);
 
     /* Mark a transaction (and its in-wallet descendants) as conflicting with a particular block. */
     void MarkConflicted(const uint256& hashBlock, const uint256& hashTx);
 
     void SyncMetaData(std::pair<TxSpends::iterator, TxSpends::iterator>);
+
+    void SyncMetaDataStx(std::pair<TxSpends::iterator, TxSpends::iterator>);
 
     /* Used by TransactionAddedToMemorypool/BlockConnected/Disconnected.
      * Should be called with pindexBlock and posInBlock if this is for a transaction that is included in a block. */
@@ -854,11 +861,13 @@ public:
     }
 
     std::map<uint256, CWalletTx> mapWallet;
+    std::map<uint256, CWalletTx> mapWalletStx;
     std::list<CAccountingEntry> laccentries;
 
     typedef std::pair<CWalletTx*, CAccountingEntry*> TxPair;
     typedef std::multimap<int64_t, TxPair > TxItems;
     TxItems wtxOrdered;
+    TxItems wstxOrdered;
 
     int64_t nOrderPosNext;
     uint64_t nAccountingEntryNumber;
@@ -990,7 +999,7 @@ public:
     bool GetAccountDestination(CTxDestination &dest, std::string strAccount, bool bForceNew = false);
 
     void MarkDirty();
-    bool AddToWallet(const CWalletTx& wtxIn, bool fFlushOnClose=true);
+    bool AddToWallet(const CWalletTx& wtxIn, bool fFlushOnClose=true, TxType txtype = TxTypeRegular);
     bool LoadToWallet(const CWalletTx& wtxIn);
     void TransactionAddedToMempool(const CTransactionRef& tx) override;
     void BlockConnected(const std::shared_ptr<const CBlock>& pblock, const CBlockIndex *pindex, const std::vector<CTransactionRef>& vtxConflicted) override;

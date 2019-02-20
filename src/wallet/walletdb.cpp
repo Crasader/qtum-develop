@@ -56,6 +56,18 @@ bool CWalletDB::EraseTx(uint256 hash)
     return EraseIC(std::make_pair(std::string("tx"), hash));
 }
 
+//////////////////////////////////////////////////////////////// decred
+bool CWalletDB::WriteStx(const CWalletTx& wstx)
+{
+    return WriteIC(std::make_pair(std::string("stx"), wstx.GetHash()), wstx);
+}
+
+bool CWalletDB::EraseStx(uint256 hash)
+{
+    return EraseIC(std::make_pair(std::string("stx"), hash));
+}
+////////////////////////////////////////////////////////////////
+
 bool CWalletDB::WriteKey(const CPubKey& vchPubKey, const CPrivKey& vchPrivKey, const CKeyMetadata& keyMeta)
 {
     if (!WriteIC(std::make_pair(std::string("keymeta"), vchPubKey), keyMeta, false)) {

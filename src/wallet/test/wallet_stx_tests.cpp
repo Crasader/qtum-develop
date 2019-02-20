@@ -63,7 +63,7 @@ public:
         ::bitdb.Reset();
     }
 
-    CWalletTx& AddTx(CRecipient recipient)
+    void AddTx(CRecipient recipient)
     {
     	const CChainParams& chainparams = Params();
     	CBlockIndex* pindexPrev = chainActive.Tip();
@@ -91,14 +91,21 @@ public:
         CMutableTransaction sblocktx;
         {
             LOCK(wallet->cs_wallet);
-            blocktx = CMutableTransaction(*wallet->mapWallet.at(swtx.GetHash()).tx);
+            sblocktx = CMutableTransaction(*wallet->mapWallet.at(swtx.GetHash()).tx);
         }
         CreateAndProcessBlock({CMutableTransaction(blocktx)}, {CMutableTransaction(sblocktx)}, GetScriptForRawPubKey(coinbaseKey.GetPubKey()));
-        LOCK(wallet->cs_wallet);
-        auto it = wallet->mapWallet.find(wtx.GetHash());
-        BOOST_CHECK(it != wallet->mapWallet.end());
-        it->second.SetMerkleBranch(chainActive.Tip(), 1);
-        return it->second;
+
+        {
+            LOCK(wallet->cs_wallet);
+            auto it = wallet->mapWallet.find(wtx.GetHash());
+            BOOST_CHECK(it != wallet->mapWallet.end());
+            it->second.SetMerkleBranch(chainActive.Tip(), 1);
+
+            auto sit = wallet->mapWallet.find(swtx.GetHash());
+            BOOST_CHECK(sit != wallet->mapWallet.end());
+            sit->second.SetMerkleBranch(chainActive.Tip(), 2);
+        }
+
     }
 
     std::unique_ptr<CWallet> wallet;

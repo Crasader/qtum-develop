@@ -30,7 +30,9 @@
 #include <utilmoneystr.h>
 #include <wallet/fees.h>
 #include <pos.h>
+
 #include <wallet/test/wallet_stx_def.h>
+#include <stake/staketx.h>
 
 #include <assert.h>
 #include <future>
@@ -751,6 +753,44 @@ void CWallet::SyncMetaData(std::pair<TxSpends::iterator, TxSpends::iterator> ran
     }
 }
 
+void CWallet::SyncMetaDataStx(std::pair<TxSpends::iterator, TxSpends::iterator> range)
+{
+    // We want all the wallet transactions in range to have the same metadata as
+    // the oldest (smallest nOrderPos).
+    // So: find smallest nOrderPos:
+
+    int nMinOrderPos = std::numeric_limits<int>::max();
+    const CWalletTx* copyFrom = nullptr;
+    for (TxSpends::iterator it = range.first; it != range.second; ++it) {
+        const CWalletTx* wtx = &mapWalletStx[it->second];
+        if (wtx->nOrderPos < nMinOrderPos) {
+            nMinOrderPos = wtx->nOrderPos;;
+            copyFrom = wtx;
+        }
+    }
+
+    assert(copyFrom);
+
+    // Now copy data from copyFrom to rest:
+    for (TxSpends::iterator it = range.first; it != range.second; ++it)
+    {
+        const uint256& hash = it->second;
+        CWalletTx* copyTo = &mapWalletStx[hash];
+        if (copyFrom == copyTo) continue;
+        assert(copyFrom && "Oldest wallet transaction in range assumed to have been found.");
+        if (!copyFrom->IsEquivalentTo(*copyTo)) continue;
+        copyTo->mapValue = copyFrom->mapValue;
+        copyTo->vOrderForm = copyFrom->vOrderForm;
+        // fTimeReceivedIsTxTime not copied on purpose
+        // nTimeReceived not copied on purpose
+        copyTo->nTimeSmart = copyFrom->nTimeSmart;
+        copyTo->fFromMe = copyFrom->fFromMe;
+        copyTo->strFromAccount = copyFrom->strFromAccount;
+        // nOrderPos not copied on purpose
+        // cached members not copied on purpose
+    }
+}
+
 /**
  * Outpoint is spent if any non-conflicted transaction
  * spends it:
@@ -783,6 +823,14 @@ void CWallet::AddToSpends(const COutPoint& outpoint, const uint256& wtxid)
     SyncMetaData(range);
 }
 
+void CWallet::AddToSpendsStx(const COutPoint& outpoint, const uint256& wtxid){
+    mapStxSpends.insert(std::make_pair(outpoint, wtxid));
+
+    std::pair<TxSpends::iterator, TxSpends::iterator> range;
+    range = mapStxSpends.equal_range(outpoint);
+    SyncMetaDataStx(range);
+}
+
 void CWallet::RemoveFromSpends(const COutPoint& outpoint, const uint256& wtxid)
 {
     std::pair<TxSpends::iterator, TxSpends::iterator> range;
@@ -811,6 +859,23 @@ void CWallet::AddToSpends(const uint256& wtxid)
 
     for (const CTxIn& txin : thisTx.tx->vin)
         AddToSpends(txin.prevout, wtxid);
+}
+
+void CWallet::AddToSpendsStx(const uint256& wtxid, TxType txtype)
+{
+    auto it = mapWalletStx.find(wtxid);
+    assert(it != mapWalletStx.end());
+    CWalletTx& thisTx = it->second;
+    if (thisTx.IsCoinBase()) // Coinbases don't spend anything!
+        return;
+
+    for (const CTxIn& txin : thisTx.tx->vin)
+    	if(txtype != TxTypeSStx){
+    		AddToSpendsStx(txin.prevout, wtxid);
+    	}
+    	else{
+    		AddToSpends(txin.prevout, wtxid);
+    	}
 }
 
 void CWallet::RemoveFromSpends(const uint256& wtxid)
@@ -1116,7 +1181,7 @@ bool CWallet::MarkReplaced(const uint256& originalHash, const uint256& newHash)
     return success;
 }
 
-bool CWallet::AddToWallet(const CWalletTx& wtxIn, bool fFlushOnClose)
+bool CWallet::AddToWallet(const CWalletTx& wtxIn, bool fFlushOnClose, TxType txtype)
 {
     LOCK(cs_wallet);
 
@@ -1125,7 +1190,13 @@ bool CWallet::AddToWallet(const CWalletTx& wtxIn, bool fFlushOnClose)
     uint256 hash = wtxIn.GetHash();
 
     // Inserts only if not already there, returns tx inserted or tx found
-    std::pair<std::map<uint256, CWalletTx>::iterator, bool> ret = mapWallet.insert(std::make_pair(hash, wtxIn));
+	std::pair<std::map<uint256, CWalletTx>::iterator, bool> ret;
+    if(txtype != TxTypeRegular){
+    	ret = mapWalletStx.insert(std::make_pair(hash, wtxIn));
+    } else {
+    	ret = mapWallet.insert(std::make_pair(hash, wtxIn));
+    }
+
     CWalletTx& wtx = (*ret.first).second;
     wtx.BindWallet(this);
     bool fInsertedNew = ret.second;
@@ -1133,9 +1204,15 @@ bool CWallet::AddToWallet(const CWalletTx& wtxIn, bool fFlushOnClose)
     {
         wtx.nTimeReceived = GetAdjustedTime();
         wtx.nOrderPos = IncOrderPosNext(&walletdb);
-        wtxOrdered.insert(std::make_pair(wtx.nOrderPos, TxPair(&wtx, nullptr)));
-        wtx.nTimeSmart = ComputeTimeSmart(wtx);
-        AddToSpends(hash);
+        if(txtype != TxTypeRegular){
+        	wstxOrdered.insert(std::make_pair(wtx.nOrderPos, TxPair(&wtx, nullptr)));
+            wtx.nTimeSmart = ComputeTimeSmart(wtx);
+            AddToSpendsStx(hash, txtype);
+        } else {
+        	wtxOrdered.insert(std::make_pair(wtx.nOrderPos, TxPair(&wtx, nullptr)));
+            wtx.nTimeSmart = ComputeTimeSmart(wtx);
+            AddToSpends(hash);
+        }
     }
 
     bool fUpdated = false;
@@ -1174,17 +1251,27 @@ bool CWallet::AddToWallet(const CWalletTx& wtxIn, bool fFlushOnClose)
         }
         if(fUpdated && wtx.IsCoinStake())
         {
-            AddToSpends(hash);
+            if(txtype != TxTypeRegular){
+                AddToSpendsStx(hash, txtype);
+            } else {
+                AddToSpends(hash);
+            }
         }
     }
 
     //// debug print
-    LogPrintf("AddToWallet %s  %s%s\n", wtxIn.GetHash().ToString(), (fInsertedNew ? "new" : ""), (fUpdated ? "update" : ""));
+    LogPrintf("AddToWallet %s  %s%s  %s\n", wtxIn.GetHash().ToString(), (fInsertedNew ? "new" : ""), (fUpdated ? "update" : ""), (TestStxDebug? "stake_tx" : "regular_tx"));
 
     // Write to disk
-    if (fInsertedNew || fUpdated)
-        if (!walletdb.WriteTx(wtx))
-            return false;
+    if (fInsertedNew || fUpdated){
+    	if(txtype != TxTypeRegular){
+            if (!walletdb.WriteStx(wtx))
+                return false;
+    	} else {
+            if (!walletdb.WriteTx(wtx))
+                return false;
+    	}
+    }
 
     // Break debit/credit balance caches:
     wtx.MarkDirty();
@@ -3999,23 +4086,31 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, con
 bool CWallet::CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey, CConnman* connman, CValidationState& state)
 {
     {
+    	CValidationStakeState stakestate;
         LOCK2(cs_main, cs_wallet);
+
         LogPrintf("CommitTransaction:\n%s", wtxNew.tx->ToString());
+
+        // Take key pair from key pool so it won't be used again
+        reservekey.KeepKey();
+        TxType stxType = DetermineTxType(*wtxNew.tx, stakestate);
+
+        // Add tx to wallet, because if it has change it's also ours,
+        // otherwise just for transaction history.
+        AddToWallet(wtxNew, true, stxType);
+
+        // Notify that old coins are spent
+        for (const CTxIn& txin : wtxNew.tx->vin)
         {
-            // Take key pair from key pool so it won't be used again
-            reservekey.KeepKey();
-
-            // Add tx to wallet, because if it has change it's also ours,
-            // otherwise just for transaction history.
-            AddToWallet(wtxNew);
-
-            // Notify that old coins are spent
-            for (const CTxIn& txin : wtxNew.tx->vin)
-            {
-                CWalletTx &coin = mapWallet[txin.prevout.hash];
+        	if(stxType == TxTypeRegular || stxType == TxTypeSStx){
+        		CWalletTx &coin = mapWallet[txin.prevout.hash];
                 coin.BindWallet(this);
                 NotifyTransactionChanged(this, coin.GetHash(), CT_UPDATED);
-            }
+        	} else {
+        		CWalletTx &coin = mapWalletStx[txin.prevout.hash];
+                coin.BindWallet(this);
+                NotifyTransactionChanged(this, coin.GetHash(), CT_UPDATED);
+        	}
         }
 
         // Track how many getdata requests our transaction gets
@@ -4023,16 +4118,29 @@ bool CWallet::CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey, CCon
 
         // Get the inserted-CWalletTx from mapWallet so that the
         // fInMempool flag is cached properly
-        CWalletTx& wtx = mapWallet[wtxNew.GetHash()];
-
-        if (fBroadcastTransactions)
-        {
-            // Broadcast
-            if (!wtx.AcceptToMemoryPool(maxTxFee, state)) {
-                LogPrintf("CommitTransaction(): Transaction cannot be broadcast immediately, %s\n", state.GetRejectReason());
-                // TODO: if we expect the failure to be long term or permanent, instead delete wtx from the wallet and return failure.
-            } else {
-                wtx.RelayWalletTransaction(connman);
+        if(stxType != TxTypeRegular){
+        	CWalletTx& wtx = mapWalletStx[wtxNew.GetHash()];
+            if (fBroadcastTransactions)
+            {
+                // Broadcast
+                if (!wtx.AcceptToMemoryPool(maxTxFee, state)) {	// TODO, modify sstx in mempool logical
+                    LogPrintf("CommitTransaction(): Transaction cannot be broadcast immediately, %s\n", state.GetRejectReason());
+                    // TODO: if we expect the failure to be long term or permanent, instead delete wtx from the wallet and return failure.
+                } else {
+                    wtx.RelayWalletTransaction(connman);
+                }
+            }
+        } else {
+        	CWalletTx& wtx = mapWallet[wtxNew.GetHash()];
+            if (fBroadcastTransactions)
+            {
+                // Broadcast
+                if (!wtx.AcceptToMemoryPool(maxTxFee, state)) {	// TODO, modify sstx in mempool logical
+                    LogPrintf("CommitTransaction(): Transaction cannot be broadcast immediately, %s\n", state.GetRejectReason());
+                    // TODO: if we expect the failure to be long term or permanent, instead delete wtx from the wallet and return failure.
+                } else {
+                    wtx.RelayWalletTransaction(connman);
+                }
             }
         }
     }

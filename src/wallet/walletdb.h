@@ -181,6 +181,9 @@ public:
     bool WriteTx(const CWalletTx& wtx);
     bool EraseTx(uint256 hash);
 
+    bool WriteStx(const CWalletTx& wtx);
+    bool EraseStx(uint256 hash);
+
     bool WriteToken(const CTokenInfo& wtoken);
     bool EraseToken(uint256 hash);
 

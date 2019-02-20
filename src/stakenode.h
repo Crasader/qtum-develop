@@ -40,7 +40,7 @@ bool maybeFetchTicketInfo(const Consensus::Params& consensusParams, CBlockIndex*
 // not already been pruned.
 //
 // This function MUST be called with the chain state lock held (for writes).
-bool fetchStakeNode(const Consensus::Params& consensusParams, CBlockIndex* node, std::shared_ptr<TicketNode>);
+bool fetchStakeNode(const Consensus::Params& consensusParams, CBlockIndex* node, std::shared_ptr<TicketNode> stakeNode);
 
 
 
