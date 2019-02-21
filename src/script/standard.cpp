@@ -532,8 +532,8 @@ CScript PurchaseCommitmentScript(CKeyID& address, CAmount&  amount, CAmount& vot
 	// set to indicate a pay-to-script-hash address), and 2 bytes for the
 	// fee limits.
 	std::vector<unsigned char> vchrs;
-	vchrs.resize(30);
 	vchrs.assign(address.begin(), address.end());
+	vchrs.resize(30);
 	WriteLE64(vchrs.data() + 20, (uint64_t)amount);
 	vchrs[27] |= 1 << 7;
 

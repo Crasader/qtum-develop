@@ -71,29 +71,48 @@ public:
         estimateNextStakeDifficultyV2(chainparams.GetConsensus(), pindexPrev, ticketPrice);
 
         CWalletTx wtx;
-        CWalletTx swtx;
+        std::vector<CWalletTx> swtxVch;
+        uint32_t stxTotalNum = chainparams.GetConsensus().MaxFreshStakePerBlock;
+        swtxVch.resize(stxTotalNum);
         CReserveKey reservekey(wallet.get());
         CAmount fee;
         int changePos = -1;
         std::string error;
         CCoinControl dummy;
-        BOOST_CHECK(wallet->CreateTransaction({recipient}, wtx, reservekey, fee, changePos, error, dummy));
-        BOOST_CHECK(wallet->CreateTicketPurchaseTx(swtx, ticketPrice, fee, error, dummy));
         CValidationState state;
+        BOOST_CHECK(wallet->CreateTransaction({recipient}, wtx, reservekey, fee, changePos, error, dummy));
+
+        for(uint16_t num = 0; num < stxTotalNum; num++){
+        	CWalletTx swtx;
+        	BOOST_CHECK(wallet->CreateTicketPurchaseTx(swtx, ticketPrice, fee, error, dummy));
+			swtxVch[num] = swtx;
+			state.clear();
+        }
+
         BOOST_CHECK(wallet->CommitTransaction(wtx, reservekey, nullptr, state));
-        BOOST_CHECK(wallet->CommitTransaction(swtx, reservekey, nullptr, state));
+        state.clear();
+
+        for(uint16_t numToCommit = 0; numToCommit < swtxVch.size(); numToCommit++){
+			BOOST_CHECK(wallet->CommitTransaction(swtxVch[numToCommit], reservekey, nullptr, state));
+			state.clear();
+        }
+
         CMutableTransaction blocktx;
         {
             LOCK(wallet->cs_wallet);
             blocktx = CMutableTransaction(*wallet->mapWallet.at(wtx.GetHash()).tx);
         }
 
-        CMutableTransaction sblocktx;
+        std::vector<CMutableTransaction> sblocktxVch;
         {
             LOCK(wallet->cs_wallet);
-            sblocktx = CMutableTransaction(*wallet->mapWallet.at(swtx.GetHash()).tx);
+            CMutableTransaction sblocktx;
+            for(uint16_t txnum = 0; txnum < swtxVch.size(); txnum++){
+            	sblocktx = CMutableTransaction(*wallet->mapWalletStx.at(swtxVch[txnum].GetHash()).tx);
+            	sblocktxVch.push_back(sblocktx);
+            }
         }
-        CreateAndProcessBlock({CMutableTransaction(blocktx)}, {CMutableTransaction(sblocktx)}, GetScriptForRawPubKey(coinbaseKey.GetPubKey()));
+        CreateAndProcessBlock({CMutableTransaction(blocktx)}, sblocktxVch, GetScriptForRawPubKey(coinbaseKey.GetPubKey()));
 
         {
             LOCK(wallet->cs_wallet);
@@ -101,11 +120,12 @@ public:
             BOOST_CHECK(it != wallet->mapWallet.end());
             it->second.SetMerkleBranch(chainActive.Tip(), 1);
 
-            auto sit = wallet->mapWallet.find(swtx.GetHash());
-            BOOST_CHECK(sit != wallet->mapWallet.end());
-            sit->second.SetMerkleBranch(chainActive.Tip(), 2);
+            for(uint16_t txnum = 0; txnum < swtxVch.size(); txnum++){
+                auto sit = wallet->mapWalletStx.find(swtxVch[txnum].GetHash());
+                BOOST_CHECK(sit != wallet->mapWalletStx.end());
+                sit->second.SetMerkleBranch(chainActive.Tip(), 2 + txnum);
+            }
         }
-
     }
 
     std::unique_ptr<CWallet> wallet;

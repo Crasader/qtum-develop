@@ -225,6 +225,8 @@ TestChain100SetupTmp::TestChain100SetupTmp() : TestingSetup(CBaseChainParams::UN
 
 CBlock TestChain100SetupTmp::CreateAndProcessBlock(const std::vector<CMutableTransaction>& txns, const std::vector<CMutableTransaction>& stxns, const CScript& scriptPubKey){
     const CChainParams& chainparams = Params();
+    assert(stxns.size() <= chainparams.GetConsensus().MaxFreshStakePerBlock);
+
     std::unique_ptr<CBlockTemplate> pblocktemplate = BlockAssembler(chainparams).CreateNewBlock(scriptPubKey);
     CBlock& block = pblocktemplate->block;
 
