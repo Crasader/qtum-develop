@@ -640,29 +640,39 @@ public:
         ::bitdb.Reset();
     }
 
-    CWalletTx& AddTx(CRecipient recipient)
+    void AddTx(CRecipient recipient)	// modify produce 5 transactions with one utxo
     {
-        CWalletTx wtx;
-        CReserveKey reservekey(wallet.get());
-        CAmount fee;
-        int changePos = -1;
-        std::string error;
-        CCoinControl dummy;
-        BOOST_CHECK(wallet->CreateTransaction({recipient}, wtx, reservekey, fee, changePos, error, dummy));
-        CValidationState state;
-        BOOST_CHECK(wallet->CommitTransaction(wtx, reservekey, nullptr, state));
-        CMutableTransaction blocktx;
-        {
-            LOCK(wallet->cs_wallet);
-            blocktx = CMutableTransaction(*wallet->mapWallet.at(wtx.GetHash()).tx);
+    	std::vector<CWalletTx> wtxs;
+        for(uint16_t txnum = 0; txnum < 5; txnum++){
+            CReserveKey reservekey(wallet.get());
+            CAmount fee;
+            int changePos = -1;
+            std::string error;
+            CCoinControl dummy;
+
+        	CValidationState state;
+        	CWalletTx wtx;
+            BOOST_CHECK(wallet->CreateTransaction({recipient}, wtx, reservekey, fee, changePos, error, dummy));
+            BOOST_TEST_MESSAGE(strprintf("%s", error));
+            BOOST_CHECK(wallet->CommitTransaction(wtx, reservekey, nullptr, state));
+            wtxs.push_back(wtx);
         }
 
-        CreateAndProcessBlock({CMutableTransaction(blocktx)}, GetScriptForRawPubKey(coinbaseKey.GetPubKey()));
-        LOCK(wallet->cs_wallet);
-        auto it = wallet->mapWallet.find(wtx.GetHash());
-        BOOST_CHECK(it != wallet->mapWallet.end());
-        it->second.SetMerkleBranch(chainActive.Tip(), 1);
-        return it->second;
+        std::vector<CMutableTransaction> blocktxs;
+        for(uint16_t idx = 0; idx < wtxs.size(); idx++){
+        	CMutableTransaction blocktx;
+            LOCK(wallet->cs_wallet);
+            blocktx = CMutableTransaction(*wallet->mapWallet.at(wtxs[idx].GetHash()).tx);
+        }
+
+        CreateAndProcessBlock(blocktxs, GetScriptForRawPubKey(coinbaseKey.GetPubKey()));
+
+        for(uint16_t txidx = 0; txidx < wtxs.size(); txidx++){
+            LOCK(wallet->cs_wallet);
+            auto it = wallet->mapWallet.find(wtxs[txidx].GetHash());
+            BOOST_CHECK(it != wallet->mapWallet.end());
+            it->second.SetMerkleBranch(chainActive.Tip(), 1 + txidx);
+        }
     }
 
     std::unique_ptr<CWallet> wallet;

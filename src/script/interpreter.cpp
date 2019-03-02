@@ -1050,7 +1050,7 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
                 case OP_SSRTX:
                 case OP_SSTXCHANGE:
                 {
-                	return true;	//temp
+                	break;	//temp
                 }
                 case OP_CHECKSIGALT:
                 {

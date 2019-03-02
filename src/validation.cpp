@@ -2971,6 +2971,81 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
         }
         UpdateCoins(tx, view, i == 0 ? undoDummy : blockundo.vtxundo.back(), pindex->nHeight);
     }
+
+    //////////////////////////////////////////////////////////////// decred
+    for (unsigned int i = 0; i < block.svtx.size(); i++)
+    {
+        const CTransaction &tx = *(block.svtx[i]);
+
+        nInputs += tx.vin.size();
+
+		CAmount txfee = 0;
+		if (!Consensus::CheckTxInputs(tx, state, view, pindex->nHeight, txfee)) {
+			return error("%s: Consensus::CheckTxInputs: %s, %s", __func__, tx.GetHash().ToString(), FormatStateMessage(state));
+		}
+		nFees += txfee;
+		if (!MoneyRange(nFees)) {
+			return state.DoS(100, error("%s: accumulated fee in the block out of range.", __func__),
+							 REJECT_INVALID, "bad-txns-accumulated-fee-outofrange");
+		}
+
+		// Check that transaction is BIP68 final
+		// BIP68 lock checks (as opposed to nLockTime checks) must
+		// be in ConnectBlock because they require the UTXO set
+		prevheights.resize(tx.vin.size());
+		for (size_t j = 0; j < tx.vin.size(); j++) {
+			prevheights[j] = view.AccessCoin(tx.vin[j].prevout).nHeight;
+		}
+
+		if (!SequenceLocks(tx, nLockTimeFlags, &prevheights, *pindex)) {
+			return state.DoS(100, error("%s: contains a non-BIP68-final transaction", __func__),
+							 REJECT_INVALID, "bad-txns-nonfinal");
+		}
+
+        // GetTransactionSigOpCost counts 3 types of sigops:
+        // * legacy (always)
+        // * p2sh (when P2SH enabled in flags and excludes coinbase)
+        // * witness (when witness enabled in flags and excludes coinbase)
+        nSigOpsCost += GetTransactionSigOpCost(tx, view, flags);
+        if (nSigOpsCost > dgpMaxBlockSigOps)
+            return state.DoS(100, error("ConnectBlock(): too many sigops"),
+                             REJECT_INVALID, "bad-blk-sigops");
+
+        txdata.emplace_back(tx);
+
+        bool hasOpSpend = tx.HasOpSpend();
+
+		std::vector<CScriptCheck> vChecks;
+		bool fCacheResults = fJustCheck; /* Don't cache results if we're actually connecting blocks (still consult the cache, though) */
+		//note that coinbase and coinstake can not contain any contract opcodes, this is checked in CheckBlock
+		if (!CheckInputs(tx, state, view, fScriptChecks, flags, fCacheResults, fCacheResults, txdata[i], (hasOpSpend || tx.HasCreateOrCall()) ? nullptr : (nScriptCheckThreads ? &vChecks : nullptr)))//nScriptCheckThreads ? &vChecks : nullptr))
+			return error("ConnectBlock(): CheckInputs on %s failed with %s",
+				tx.GetHash().ToString(), FormatStateMessage(state));
+		control.Add(vChecks);
+
+		for(const CTxIn& j : tx.vin){
+			if(!j.scriptSig.HasOpSpend()){
+				const CTxOut& prevout = view.AccessCoin(j.prevout).out;
+				if((prevout.scriptPubKey.HasOpCreate() || prevout.scriptPubKey.HasOpCall())){
+					return state.DoS(100, error("ConnectBlock(): Contract spend without OP_SPEND in scriptSig"),
+							REJECT_INVALID, "bad-txns-invalid-contract-spend");
+				}
+			}
+		}
+
+		int64_t nTxValueIn = view.GetValueIn(tx);
+		int64_t nTxValueOut = tx.GetValueOut();
+		nValueIn += nTxValueIn;
+		nValueOut += nTxValueOut;
+
+        CTxUndo undoDummy;
+        if (i > 0) {
+            blockundo.vtxundo.push_back(CTxUndo());
+        }
+        UpdateCoins(tx, view, i == 0 ? undoDummy : blockundo.vtxundo.back(), pindex->nHeight);
+    }
+    ////////////////////////////////////////////////////////////////
+
     int64_t nTime3 = GetTimeMicros(); nTimeConnect += nTime3 - nTime2;
     LogPrint(BCLog::BENCH, "      - Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin) [%.2fs (%.2fms/blk)]\n", (unsigned)block.vtx.size(), MILLI * (nTime3 - nTime2), MILLI * (nTime3 - nTime2) / block.vtx.size(), nInputs <= 1 ? 0 : MILLI * (nTime3 - nTime2) / (nInputs-1), nTimeConnect * MICRO, nTimeConnect * MILLI / nBlocksTotal);
 
@@ -4077,6 +4152,9 @@ bool CChainState::ConnectTip(CValidationState& state, const CChainParams& chainp
     LogPrint(BCLog::BENCH, "  - Writing chainstate: %.2fms [%.2fs (%.2fms/blk)]\n", (nTime5 - nTime4) * MILLI, nTimeChainState * MICRO, nTimeChainState * MILLI / nBlocksTotal);
     // Remove conflicting transactions from the mempool.;
     mempool.removeForBlock(blockConnecting.vtx, pindexNew->nHeight);
+    if(!blockConnecting.svtx.empty()){
+    	mempool.removeForBlock(blockConnecting.svtx, pindexNew->nHeight);
+    }
     disconnectpool.removeForBlock(blockConnecting.vtx);
     // Update chainActive & related variables.
     chainActive.SetTip(pindexNew);

@@ -145,6 +145,25 @@ isminetype IsMine(const CKeyStore &keystore, const CScript& scriptPubKey, bool& 
         break;
     }
 
+    //////////////////////////////////////////////////////////////// decred
+    case TX_STAKETX_CHANGE:
+    case TX_STAKETX_SUBMMISSION:
+    case TX_STAKEGEN:
+    {
+        keyID = CKeyID(uint160(vSolutions[0]));
+        if (sigversion != SIGVERSION_BASE) {
+            CPubKey pubkey;
+            if (keystore.GetPubKey(keyID, pubkey) && !pubkey.IsCompressed()) {
+                isInvalid = true;
+                return ISMINE_NO;
+            }
+        }
+        if (keystore.HaveKey(keyID))
+            return ISMINE_SPENDABLE;
+        break;
+    }
+    ////////////////////////////////////////////////////////////////
+
     default:
         break;
     }

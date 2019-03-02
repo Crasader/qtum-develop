@@ -131,7 +131,7 @@ bool CheckSSgen(const CTransaction& tx, CValidationStakeState& state) {
 		return state.Invalid(false, REJECT_INVALID, "ssgen-output", "First SSGen output should have been 43 bytes long, but was not");
 	}
 
-	if (!zeroethOutputScript.HasOpReturn()) {
+	if (!zeroethOutputScript.HasOpReturnB()) {
 		return state.Invalid(false, REJECT_INVALID, "ssgen-output",
 				"First SSGen output had aninvalid prefix");
 	}
@@ -155,7 +155,7 @@ bool CheckSSgen(const CTransaction& tx, CValidationStakeState& state) {
 	bool pushLengthValid = pushLen >= validSSGenVoteOutMinPrefix[1] && pushLen <= MaxSingleBytePushLength;
 	// The first byte should be OP_RETURN, while the second byte should be a
 	// valid push length.
-	if(!firstOutputScript.HasOpReturn() || !pushLengthValid) {
+	if(!firstOutputScript.HasOpReturnB() || !pushLengthValid) {
 		return state.Invalid(false, REJECT_INVALID, "ssgen-output",
 				"Second SSGen output had an invalid prefix");
 	}
@@ -288,7 +288,7 @@ bool CheckSStx(const CTransaction& tx, CValidationStakeState &state){
 		bool pushLengthValid = pushLen >= validSStxAddressOutMinPrefix[1] && pushLen <= MaxSingleBytePushLength;
 		// The first byte should be OP_RETURN, while the second byte should be a
 		// valid push length.
-		if(!rawScript.HasOpReturn() || !pushLengthValid){
+		if(!rawScript.HasOpReturnB() || !pushLengthValid){
 			return state.Invalid(false, REJECT_INVALID, "sstx-output",
 					strprintf("sstx commitment at output idx %d had an invalid prefix", outTxIndex));
 		}

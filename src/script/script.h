@@ -747,7 +747,7 @@ public:
     /////////////////////////////////////////
 
     ///////////////////////////////////////// decred
-    bool HasOpReturn() const
+    bool HasOpReturnB() const
     {
     	return *begin() == OP_RETURN;
     }

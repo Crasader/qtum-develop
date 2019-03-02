@@ -466,7 +466,7 @@ public:
 
         //////////////////////////////////////////////////////////////// decred
         consensus.MaxStakeDiff = 0xFFFFFFFFFFFFFFFF;
-		consensus.MinimumStakeDiff = 20000;
+		consensus.MinimumStakeDiff = 2000000;
 
 		consensus.TicketPoolSize = 64 / 4;
 		consensus.TicketsPerBlock = 5;
@@ -478,7 +478,7 @@ public:
 		consensus.StakeValidationHeight = (16 + (64 * 2)) / 4;		// CoinbaseMaturity + TicketPoolSize*2
 		consensus.StakeEnabledHeight = (16 + 16) /4;					// CoinbaseMaturity + TicketMaturity
 		consensus.StakeBaseSigScript = CScript() << 0xDE << 0xAD << 0xBE << 0xEF;
-		consensus.TicketExpiry = 384;							// 6*TicketPoolSize
+		consensus.TicketExpiry = 384 / 4;							// 6*TicketPoolSize
 
 		consensus.BaseSubsidy = 500 * COIN;
 		consensus.MulSubsidy = 100;

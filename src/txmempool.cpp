@@ -18,7 +18,7 @@
 #include <utilmoneystr.h>
 #include <utiltime.h>
 
-CTxMemPoolEntry::CTxMemPoolEntry(const CTransactionRef& _tx, const CAmount& _nFee,
+CTxMemPoolEntry::CTxMemPoolEntry(const CTransactionRef& _tx, const CAmount& _nFee, // @suppress("Class members should be properly initialized")
                                  int64_t _nTime, unsigned int _entryHeight,
                                  bool _spendsCoinbase, int64_t _sigOpsCost, LockPoints lp, CAmount _nMinGasPrice):
     tx(_tx), nFee(_nFee), nTime(_nTime), entryHeight(_entryHeight),

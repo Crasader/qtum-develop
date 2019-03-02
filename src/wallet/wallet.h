@@ -726,12 +726,15 @@ private:
 
     TxSpends mapTxSpends;
     TxSpends mapStxSpends;
-    void AddToSpends(const COutPoint& outpoint, const uint256& wtxid);
-    void AddToSpendsStx(const COutPoint& outpoint, const uint256& wtxid);
+    void AddToSpends(const COutPoint& outpoint, const uint256& wtxid, TxType txtype);
     void RemoveFromSpends(const COutPoint& outpoint, const uint256& wtxid);
-    void AddToSpends(const uint256& wtxid);
-    void AddToSpendsStx(const uint256& wtxid, TxType txtype);
+    void AddToSpends(const uint256& wtxid, TxType txtype);
     void RemoveFromSpends(const uint256& wtxid);
+
+    //////////////////////////////////////////////////////////////// decred
+    void AddToSpendsStx(const COutPoint& outpoint, const uint256& wtxid, TxType txtype);
+    void AddToSpendsStx(const uint256& wtxid, TxType txtype);
+    ////////////////////////////////////////////////////////////////
 
     /* Mark a transaction (and its in-wallet descendants) as conflicting with a particular block. */
     void MarkConflicted(const uint256& hashBlock, const uint256& hashTx);
@@ -917,6 +920,7 @@ public:
     bool SelectCoinsMinConf(const CAmount& nTargetValue, int nConfMine, int nConfTheirs, uint64_t nMaxAncestors, std::vector<COutput> vCoins, std::set<CInputCoin>& setCoinsRet, CAmount& nValueRet) const;
 
     bool IsSpent(const uint256& hash, unsigned int n) const;
+    bool IsSpentStx(const uint256& hash, unsigned int n) const;
 
     bool IsLockedCoin(uint256 hash, unsigned int n) const;
     void LockCoin(const COutPoint& output);
@@ -1228,7 +1232,7 @@ public:
     bool TransactionCanBeAbandoned(const uint256& hashTx) const;
 
     /* Mark a transaction (and it in-wallet descendants) as abandoned so its inputs may be respent. */
-    bool AbandonTransaction(const uint256& hashTx);
+    bool AbandonTransaction(const uint256& hashTx, TxType txtype = TxTypeRegular);
 
     /** Mark a transaction as replaced by another transaction (e.g., BIP 125). */
     bool MarkReplaced(const uint256& originalHash, const uint256& newHash);

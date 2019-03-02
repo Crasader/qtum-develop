@@ -54,6 +54,7 @@ public:
         WalletRescanReserver reserver(wallet.get());
         reserver.reserve();
         wallet->ScanForWalletTransactions(chainActive.Genesis(), nullptr, reserver);
+        wallet->SetBroadcastTransactions(true);
     }
 
     ~ListCoinsTestingSetup()
@@ -62,6 +63,45 @@ public:
         wallet.reset();
         ::bitdb.Flush(true);
         ::bitdb.Reset();
+    }
+
+    void AddTx2(CRecipient recipient)	// modify produce 5 transactions with one utxo
+    {
+    	std::vector<CWalletTx> wtxs;
+        for(uint16_t txnum = 0; txnum < 5; txnum++){
+            CReserveKey reservekey(wallet.get());
+            CAmount fee;
+            int changePos = -1;
+            std::string error;
+            CCoinControl dummy;
+
+        	CValidationState state;
+        	CWalletTx wtx;
+            BOOST_CHECK(wallet->CreateTransaction({recipient}, wtx, reservekey, fee, changePos, error, dummy));
+            BOOST_TEST_MESSAGE(strprintf("%s", error));
+            BOOST_CHECK(wallet->CommitTransaction(wtx, reservekey, nullptr, state));
+            BOOST_TEST_MESSAGE(strprintf("%s%s (code %i)",
+                    state.GetRejectReason(),
+                    state.GetDebugMessage().empty() ? "" : ", "+state.GetDebugMessage(),
+                    state.GetRejectCode()));
+            wtxs.push_back(wtx);
+        }
+
+        std::vector<CMutableTransaction> blocktxs;
+        for(uint16_t idx = 0; idx < wtxs.size(); idx++){
+        	CMutableTransaction blocktx;
+            LOCK(wallet->cs_wallet);
+            blocktx = CMutableTransaction(*wallet->mapWallet.at(wtxs[idx].GetHash()).tx);
+        }
+
+        CreateAndProcessBlock(blocktxs, {}, GetScriptForRawPubKey(coinbaseKey.GetPubKey()));
+
+        for(uint16_t txidx = 0; txidx < wtxs.size(); txidx++){
+            LOCK(wallet->cs_wallet);
+            auto it = wallet->mapWallet.find(wtxs[txidx].GetHash());
+            BOOST_CHECK(it != wallet->mapWallet.end());
+            it->second.SetMerkleBranch(chainActive.Tip(), 1 + txidx);
+        }
     }
 
     void AddTx()
@@ -76,10 +116,15 @@ public:
 		std::string error;
 		CCoinControl dummy;
 		CValidationState state;
-		for(uint16_t txCreateNum = 0; txCreateNum < chainparams.GetConsensus().CoinbaseMaturity * chainparams.GetConsensus().MaxFreshStakePerBlock; txCreateNum++){
-			CScript scriptTx = GetScriptForDestination(coinbaseKey.GetPubKey().GetID());
-			vecSend.push_back({scriptTx, 1 * COIN, false});
-		}
+
+//		for(uint16_t txCreateNum = 0; txCreateNum < chainparams.GetConsensus().CoinbaseMaturity * chainparams.GetConsensus().MaxFreshStakePerBlock; txCreateNum++){
+//			CScript scriptTx = GetScriptForDestination(coinbaseKey.GetPubKey().GetID());
+//			vecSend.push_back({scriptTx, 1 * COIN, false});
+//		}
+
+		CScript scriptTx = GetScriptForDestination(coinbaseKey.GetPubKey().GetID());
+		vecSend.push_back({scriptTx, 1 * COIN, false});
+
         BOOST_CHECK(wallet->CreateTransaction(vecSend, wtx, reservekey, fee, changePos, error, dummy));
         BOOST_CHECK(wallet->CommitTransaction(wtx, reservekey, nullptr, state));
 
@@ -119,7 +164,12 @@ public:
         for(uint16_t num = 0; num < stxTotalNum; num++){
         	CWalletTx swtx;
         	BOOST_CHECK(wallet->CreateTicketPurchaseTx(swtx, ticketPrice, fee, error, dummy));
+        	BOOST_TEST_MESSAGE(strprintf("%s", error));
         	BOOST_CHECK(wallet->CommitTransaction(swtx, reservekey, nullptr, state));
+            BOOST_TEST_MESSAGE(strprintf("%s%s (code %i)",
+                    state.GetRejectReason(),
+                    state.GetDebugMessage().empty() ? "" : ", "+state.GetDebugMessage(),
+                    state.GetRejectCode()));
 			swtxVch[num] = swtx;
 			state.clear();
         }
@@ -174,18 +224,18 @@ BOOST_AUTO_TEST_CASE(ListCoins)
     list = wallet->ListCoins();
     BOOST_CHECK_EQUAL(list.size(), 1);
     BOOST_CHECK_EQUAL(boost::get<CKeyID>(list.begin()->first).ToString(), coinbaseAddress);
-    BOOST_CHECK_EQUAL(list.begin()->second.size(), 82);
+    BOOST_CHECK_EQUAL(list.begin()->second.size(), 3);
 
     AddTxStx();
     list = wallet->ListCoins();
     BOOST_CHECK_EQUAL(list.size(), 1);
     BOOST_CHECK_EQUAL(boost::get<CKeyID>(list.begin()->first).ToString(), coinbaseAddress);
-    BOOST_CHECK_EQUAL(list.begin()->second.size(), 63);
+    BOOST_CHECK_EQUAL(list.begin()->second.size(), 4);
 
     // Lock both coins. Confirm number of available coins drops to 0.
     std::vector<COutput> available;
     wallet->AvailableCoins(available);
-    BOOST_CHECK_EQUAL(available.size(), 63);
+    BOOST_CHECK_EQUAL(available.size(), 4);
     for (const auto& group : list) {
         for (const auto& coin : group.second) {
             LOCK(wallet->cs_wallet);
@@ -200,10 +250,10 @@ BOOST_AUTO_TEST_CASE(ListCoins)
     list = wallet->ListCoins();
     BOOST_CHECK_EQUAL(list.size(), 1);
     BOOST_CHECK_EQUAL(boost::get<CKeyID>(list.begin()->first).ToString(), coinbaseAddress);
-    BOOST_CHECK_EQUAL(list.begin()->second.size(), 63);
+    BOOST_CHECK_EQUAL(list.begin()->second.size(), 4);
 }
 
-BOOST_AUTO_TEST_CASE(wallet_stx_buy_tickets)
+BOOST_AUTO_TEST_CASE(wallet_stx_mempool)	// test many txs use one utxo
 {
     std::string coinbaseAddress = coinbaseKey.GetPubKey().GetID().ToString();
 
@@ -221,37 +271,13 @@ BOOST_AUTO_TEST_CASE(wallet_stx_buy_tickets)
     // returns the coin associated with the change address underneath the
     // coinbaseKey pubkey, even though the change address has a different
     // pubkey.
-    AddTx();
+    CScript scriptTx = GetScriptForDestination(coinbaseKey.GetPubKey().GetID());
+    AddTx2(CRecipient{scriptTx, 1 * COIN, false /* subtract fee */});
     list = wallet->ListCoins();
     BOOST_CHECK_EQUAL(list.size(), 1);
     BOOST_CHECK_EQUAL(boost::get<CKeyID>(list.begin()->first).ToString(), coinbaseAddress);
-    BOOST_CHECK_EQUAL(list.begin()->second.size(), 82);
+    BOOST_CHECK_EQUAL(list.begin()->second.size(), 4);
 
-    AddTxStx();
-    list = wallet->ListCoins();
-    BOOST_CHECK_EQUAL(list.size(), 1);
-    BOOST_CHECK_EQUAL(boost::get<CKeyID>(list.begin()->first).ToString(), coinbaseAddress);
-    BOOST_CHECK_EQUAL(list.begin()->second.size(), 63);
-
-    // Lock both coins. Confirm number of available coins drops to 0.
-    std::vector<COutput> available;
-    wallet->AvailableCoins(available);
-    BOOST_CHECK_EQUAL(available.size(), 63);
-    for (const auto& group : list) {
-        for (const auto& coin : group.second) {
-            LOCK(wallet->cs_wallet);
-            wallet->LockCoin(COutPoint(coin.tx->GetHash(), coin.i));
-        }
-    }
-    wallet->AvailableCoins(available);
-    BOOST_CHECK_EQUAL(available.size(), 0);
-
-    // Confirm ListCoins still returns same result as before, despite coins
-    // being locked.
-    list = wallet->ListCoins();
-    BOOST_CHECK_EQUAL(list.size(), 1);
-    BOOST_CHECK_EQUAL(boost::get<CKeyID>(list.begin()->first).ToString(), coinbaseAddress);
-    BOOST_CHECK_EQUAL(list.begin()->second.size(), 63);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

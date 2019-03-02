@@ -6,6 +6,7 @@
 
 #include <consensus/consensus.h>
 #include <random.h>
+#include <chainparams.h>
 
 bool CCoinsView::GetCoin(const COutPoint &outpoint, Coin &coin) const { return false; }
 uint256 CCoinsView::GetBestBlock() const { return uint256(); }
@@ -66,6 +67,7 @@ bool CCoinsViewCache::GetCoin(const COutPoint &outpoint, Coin &coin) const {
 void CCoinsViewCache::AddCoin(const COutPoint &outpoint, Coin&& coin, bool possible_overwrite) {
     assert(!coin.IsSpent());
     if (coin.out.scriptPubKey.IsUnspendable()) return;
+    if(coin.out.scriptPubKey.HasOpSSTX() && (uint32_t)coin.nHeight < (Params().GetConsensus().TicketExpiry) + (uint32_t)Params().GetConsensus().TicketMaturity) return;
     CCoinsMap::iterator it;
     bool inserted;
     std::tie(it, inserted) = cacheCoins.emplace(std::piecewise_construct, std::forward_as_tuple(outpoint), std::tuple<>());
