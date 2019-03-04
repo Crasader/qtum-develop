@@ -67,19 +67,19 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, std::vector<std::v
 
         // ssGen tx
 		mTemplates.insert(std::make_pair(TX_STAKEGEN, CScript() << OP_SSGEN << OP_DUP << OP_HASH160 << OP_PUBKEYHASH << OP_EQUALVERIFY << OP_CHECKSIG));
-//		mTemplates.insert(std::make_pair(TX_STAKEGEN, CScript() << OP_SSGEN << OP_HASH160 << OP_PUBKEYHASH << OP_EQUAL));
+		mTemplates.insert(std::make_pair(TX_STAKEGEN, CScript() << OP_SSGEN << OP_HASH160 << OP_PUBKEYHASH << OP_EQUAL));
 
 		// ssTx submission
 		mTemplates.insert(std::make_pair(TX_STAKETX_SUBMMISSION, CScript() << OP_SSTX << OP_DUP << OP_HASH160 << OP_PUBKEYHASH << OP_EQUALVERIFY << OP_CHECKSIG));
-//		mTemplates.insert(std::make_pair(TX_STAKETX_SUBMMISSION, CScript() << OP_SSTX << OP_HASH160 << OP_PUBKEYHASH << OP_EQUAL));
+		mTemplates.insert(std::make_pair(TX_STAKETX_SUBMMISSION, CScript() << OP_SSTX << OP_HASH160 << OP_PUBKEYHASH << OP_EQUAL));
 
 		// ssTx Revocation
 		mTemplates.insert(std::make_pair(TX_STAKETX_REVOCATION, CScript() << OP_SSRTX << OP_DUP << OP_HASH160 << OP_PUBKEYHASH << OP_EQUALVERIFY << OP_CHECKSIG));
-//		mTemplates.insert(std::make_pair(TX_STAKETX_REVOCATION, CScript() << OP_SSRTX << OP_HASH160 << OP_PUBKEYHASH << OP_EQUAL));
+		mTemplates.insert(std::make_pair(TX_STAKETX_REVOCATION, CScript() << OP_SSRTX << OP_HASH160 << OP_PUBKEYHASH << OP_EQUAL));
 
 		// ssTx Change
 		mTemplates.insert(std::make_pair(TX_STAKETX_CHANGE, CScript() << OP_SSTXCHANGE << OP_DUP << OP_HASH160 << OP_PUBKEYHASH << OP_EQUALVERIFY << OP_CHECKSIG));
-//		mTemplates.insert(std::make_pair(TX_STAKETX_CHANGE, CScript() << OP_SSTXCHANGE << OP_HASH160 << OP_PUBKEYHASH << OP_EQUAL));
+		mTemplates.insert(std::make_pair(TX_STAKETX_CHANGE, CScript() << OP_SSTXCHANGE << OP_HASH160 << OP_PUBKEYHASH << OP_EQUAL));
 
         // Contract creation tx
         mTemplates.insert(std::make_pair(TX_CREATE, CScript() << OP_VERSION << OP_GAS_LIMIT << OP_GAS_PRICE << OP_DATA << OP_CREATE));
