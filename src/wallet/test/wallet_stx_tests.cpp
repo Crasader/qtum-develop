@@ -23,6 +23,7 @@
 #include <wallet/test/wallet_stx_def.h>
 #include <chainparams.h>
 #include <pos.h>
+#include <stakenode.h>
 
 #include <boost/test/unit_test.hpp>
 #include <univalue.h>
@@ -226,7 +227,8 @@ BOOST_AUTO_TEST_CASE(ListCoins)
     BOOST_CHECK_EQUAL(boost::get<CKeyID>(list.begin()->first).ToString(), coinbaseAddress);
     BOOST_CHECK_EQUAL(list.begin()->second.size(), 3);
 
-    AddTxStx();
+	AddTxStx();
+
     list = wallet->ListCoins();
     BOOST_CHECK_EQUAL(list.size(), 1);
     BOOST_CHECK_EQUAL(boost::get<CKeyID>(list.begin()->first).ToString(), coinbaseAddress);
@@ -253,30 +255,23 @@ BOOST_AUTO_TEST_CASE(ListCoins)
     BOOST_CHECK_EQUAL(list.begin()->second.size(), 4);
 }
 
-BOOST_AUTO_TEST_CASE(wallet_stx_mempool)	// test many txs use one utxo
+BOOST_AUTO_TEST_CASE(wallet_stx_vote_block)	// test many txs use one utxo
 {
+	CBlockIndex* prevIdx = chainActive.Tip();
+	CBlockIndex* blockIdx = nullptr;
+	const CChainParams& chainparams = Params();
+
     std::string coinbaseAddress = coinbaseKey.GetPubKey().GetID().ToString();
 
-    // Confirm ListCoins initially returns 1 coin grouped under coinbaseKey
-    // address.
-    auto list = wallet->ListCoins();
-    BOOST_CHECK_EQUAL(list.size(), 1);
-    BOOST_CHECK_EQUAL(boost::get<CKeyID>(list.begin()->first).ToString(), coinbaseAddress);
-    BOOST_CHECK_EQUAL(list.begin()->second.size(), 1);
+    for(uint16_t bnum = 0; bnum < Params().GetConsensus().TicketMaturity; bnum++){
+    	AddTxStx();
+    }
+    auto list2 = wallet->ListCoins();
+    BOOST_CHECK_EQUAL(list2.size(), 1);
+    BOOST_CHECK_EQUAL(boost::get<CKeyID>(list2.begin()->first).ToString(), coinbaseAddress);
+    BOOST_CHECK_EQUAL(list2.begin()->second.size(), 5);
 
-    // Check initial balance from one mature coinbase transaction.
-    BOOST_CHECK_EQUAL(20000 * COIN, wallet->GetAvailableBalance());
 
-    // Add a transaction creating a change address, and confirm ListCoins still
-    // returns the coin associated with the change address underneath the
-    // coinbaseKey pubkey, even though the change address has a different
-    // pubkey.
-    CScript scriptTx = GetScriptForDestination(coinbaseKey.GetPubKey().GetID());
-    AddTx2(CRecipient{scriptTx, 1 * COIN, false /* subtract fee */});
-    list = wallet->ListCoins();
-    BOOST_CHECK_EQUAL(list.size(), 1);
-    BOOST_CHECK_EQUAL(boost::get<CKeyID>(list.begin()->first).ToString(), coinbaseAddress);
-    BOOST_CHECK_EQUAL(list.begin()->second.size(), 4);
 
 }
 
