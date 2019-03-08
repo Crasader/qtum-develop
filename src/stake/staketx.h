@@ -15,57 +15,57 @@
 #include <string>
 
 // MaxInputsPerSStx is the maximum number of inputs allowed in an SStx.
-const int MaxInputsPerSStx = 64;
+static const int MaxInputsPerSStx = 64;
 
 // MaxOutputsPerSStx is the maximum number of outputs allowed in an SStx;
 // you need +1 for the tagged SStx output.
-const int MaxOutputsPerSStx = MaxInputsPerSStx*2 + 1;
+static const int MaxOutputsPerSStx = MaxInputsPerSStx*2 + 1;
 
 // NumInputsPerSSGen is the exact number of inputs for an SSGen
 // (stakebase) tx.  Inputs are a tagged SStx output and a stakebase (null)
 // input.
-const int NumInputsPerSSGen = 2; // SStx and stakebase
+static const int NumInputsPerSSGen = 2; // SStx and stakebase
 
 // MaxOutputsPerSSGen is the maximum number of outputs in an SSGen tx,
 // which are all outputs to the addresses specified in the OP_RETURNs of
 // the original SStx referenced as input plus reference and vote
 // OP_RETURN outputs in the zeroeth and first position.
-const int MaxOutputsPerSSGen = MaxInputsPerSStx + 2;
+static const int MaxOutputsPerSSGen = MaxInputsPerSStx + 2;
 
 // NumInputsPerSSRtx is the exact number of inputs for an SSRtx (stake
 // revocation tx); the only input should be the SStx output.
-const int NumInputsPerSSRtx = 1;
+static const int NumInputsPerSSRtx = 1;
 
 // MaxOutputsPerSSRtx is the maximum number of outputs in an SSRtx, which
 // are all outputs to the addresses specified in the OP_RETURNs of the
 // original SStx referenced as input plus a reference to the block header
 // hash of the block in which voting was missed.
-const int MaxOutputsPerSSRtx = MaxInputsPerSStx;
+static const int MaxOutputsPerSSRtx = MaxInputsPerSStx;
 
 // SStxPKHMinOutSize is the minimum size of of an OP_RETURN commitment output
 // for an SStx tx.
 // 20 bytes P2SH/P2PKH + 8 byte amount + 4 byte fee range limits
-const int SStxPKHMinOutSize = 32;
+static const int SStxPKHMinOutSize = 32;
 
 // SStxPKHMaxOutSize is the maximum size of of an OP_RETURN commitment output
 // for an SStx tx.
-const int SStxPKHMaxOutSize = 77;
+static const int SStxPKHMaxOutSize = 77;
 
 // SSGenBlockReferenceOutSize is the size of a block reference OP_RETURN
 // output for an SSGen tx.
-const int SSGenBlockReferenceOutSize = 38;
+static const int SSGenBlockReferenceOutSize = 38;
 
 // SSGenVoteBitsOutputMinSize is the minimum size for a VoteBits push
 // in an SSGen.
-const int SSGenVoteBitsOutputMinSize = 4;
+static const int SSGenVoteBitsOutputMinSize = 4;
 
 // SSGenVoteBitsOutputMaxSize is the maximum size for a VoteBits push
 // in an SSGen.
-const int SSGenVoteBitsOutputMaxSize = 77;
+static const int SSGenVoteBitsOutputMaxSize = 77;
 
 // MaxSingleBytePushLength is the largest maximum push for an
 // SStx commitment or VoteBits push.
-const int MaxSingleBytePushLength = 75;
+static const int MaxSingleBytePushLength = 75;
 
 // SSGenVoteBitsExtendedMaxSize is the maximum size for a VoteBitsExtended
 // push in an SSGen.
@@ -75,37 +75,47 @@ const int MaxSingleBytePushLength = 75;
 // bytes, thus the max number of extended vote bits is the maximum
 // allow length for a single byte data push minus the 2 bytes required
 // by the non-extended vote bits.
-const int SSGenVoteBitsExtendedMaxSize = MaxSingleBytePushLength - 2;
+static const int SSGenVoteBitsExtendedMaxSize = MaxSingleBytePushLength - 2;
 
 // SStxVoteReturnFractionMask extracts the return fraction from a
 // commitment output version.
 // If after applying this mask &0x003f is given, the entire amount of
 // the output is allowed to be spent as fees if the flag to allow fees
 // is set.
-const int SStxVoteReturnFractionMask = 0x003f;
+static const int SStxVoteReturnFractionMask = 0x003f;
 
 // SStxRevReturnFractionMask extracts the return fraction from a
 // commitment output version.
 // If after applying this mask &0x3f00 is given, the entire amount of
 // the output is allowed to be spent as fees if the flag to allow fees
 // is set.
-const int SStxRevReturnFractionMask = 0x3f00;
+static const int SStxRevReturnFractionMask = 0x3f00;
 
 // SStxVoteFractionFlag is a bitflag mask specifying whether or not to
 // apply a fractional limit to the amount used for fees in a vote.
 // 00000000 00000000 = No fees allowed
 // 00000000 01000000 = Apply fees rule
-const int SStxVoteFractionFlag = 0x0040;
+static const int SStxVoteFractionFlag = 0x0040;
 
 // SStxRevFractionFlag is a bitflag mask specifying whether or not to
 // apply a fractional limit to the amount used for fees in a vote.
 // 00000000 00000000 = No fees allowed
 // 01000000 00000000 = Apply fees rule
-const int SStxRevFractionFlag = 0x4000;
+static const int SStxRevFractionFlag = 0x4000;
 
 // VoteConsensusVersionAbsent is the value of the consensus version
 // for a short read of the voteBits.
-const int VoteConsensusVersionAbsent = 0;
+static const int VoteConsensusVersionAbsent = 0;
+
+/** "reject" message codes */
+static const unsigned char STX_REJECT_MALFORMED = 0x01;
+static const unsigned char STX_REJECT_INVALID = 0x10;
+static const unsigned char STX_REJECT_OBSOLETE = 0x11;
+static const unsigned char STX_REJECT_DUPLICATE = 0x12;
+static const unsigned char STX_REJECT_NONSTANDARD = 0x40;
+// static const unsigned char REJECT_DUST = 0x41; // part of BIP 61
+static const unsigned char STX_REJECT_INSUFFICIENTFEE = 0x42;
+static const unsigned char STX_REJECT_CHECKPOINT = 0x43;
 
 using vec64 = std::vector<int64_t>;
 using valtype = std::vector<unsigned char>;

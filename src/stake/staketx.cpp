@@ -6,12 +6,10 @@
 
 
 #include <script/script_error.h>
-#include <consensus/validation.h>
-#include <validation.h>
+#include <script/standard.h>
 #include <script/script.h>
 #include <prevector.h>
 #include <vector>
-#include <stdio.h>
 #include <crypto/common.h>
 #include <openssl/bn.h>
 #include <utilstrencodings.h>
@@ -99,22 +97,22 @@ bool IsSSGen(const CTransaction& tx, CValidationStakeState& state) {
 //     MaxInputsPerSStx [index MaxOutputsPerSSgen - 1]
 bool CheckSSgen(const CTransaction& tx, CValidationStakeState& state) {
 	if (tx.vin.size() != NumInputsPerSSGen) {
-		return state.Invalid(false, REJECT_INVALID, "ssgen-input",
+		return state.Invalid(false, STX_REJECT_INVALID, "ssgen-input",
 				"invalid number of inputs");
 	}
 
 	if (tx.vout.size() > MaxOutputsPerSSGen) {
-		return state.Invalid(false, REJECT_INVALID, "ssgen-output",
+		return state.Invalid(false, STX_REJECT_INVALID, "ssgen-output",
 				"invalid number of outputs");
 	}
 
 	if (tx.vout.size() == 0) {
-		return state.Invalid(false, REJECT_INVALID, "ssgen-output",
+		return state.Invalid(false, STX_REJECT_INVALID, "ssgen-output",
 				"no many outputs");
 	}
 
 	if (!IsStakeBase(tx)) {
-		return state.Invalid(false, REJECT_INVALID, "ssgen-format",
+		return state.Invalid(false, STX_REJECT_INVALID, "ssgen-format",
 				"SSGen tx did not include a stakebase in the zeroeth input position");
 	}
 
@@ -123,30 +121,30 @@ bool CheckSSgen(const CTransaction& tx, CValidationStakeState& state) {
 	const CScript& zeroethOutputScript = tx.vout[0].scriptPubKey;
 	Solver(zeroethOutputScript, whichType, vSolutions);
 	if(whichType != TX_NULL_DATA){
-		return state.Invalid(false, REJECT_INVALID, "ssgen-output",
+		return state.Invalid(false, STX_REJECT_INVALID, "ssgen-output",
 				"First SSGen output should have been an OP_RETURN data push, but was not");
 	}
 	whichType = TX_NONSTANDARD;
 	if(zeroethOutputScript.size() != SSGenBlockReferenceOutSize){
-		return state.Invalid(false, REJECT_INVALID, "ssgen-output", "First SSGen output should have been 43 bytes long, but was not");
+		return state.Invalid(false, STX_REJECT_INVALID, "ssgen-output", "First SSGen output should have been 43 bytes long, but was not");
 	}
 
 	if (!zeroethOutputScript.HasOpReturnB()) {
-		return state.Invalid(false, REJECT_INVALID, "ssgen-output",
+		return state.Invalid(false, STX_REJECT_INVALID, "ssgen-output",
 				"First SSGen output had aninvalid prefix");
 	}
 
 	const CScript& firstOutputScript = tx.vout[1].scriptPubKey;
 	Solver(firstOutputScript, whichType, vSolutions);
 	if(whichType != TX_NULL_DATA){
-		return state.Invalid(false, REJECT_INVALID, "ssgen-output",
+		return state.Invalid(false, STX_REJECT_INVALID, "ssgen-output",
 				"Second SSGen output should have been an OP_RETURN data push, but was not");
 	}
 	whichType = TX_NONSTANDARD;
 	// The length of the output script should be between 4 and 77 bytes long.
 	if (firstOutputScript.size() < SSGenVoteBitsOutputMinSize
 			|| firstOutputScript.size() > SSGenVoteBitsOutputMaxSize) {
-		return state.Invalid(false, REJECT_INVALID, "ssgen-output",
+		return state.Invalid(false, STX_REJECT_INVALID, "ssgen-output",
 				"SSGen votebits output at output index 1 was a NullData (OP_RETURN) push of the wrong size");
 	}
 
@@ -156,7 +154,7 @@ bool CheckSSgen(const CTransaction& tx, CValidationStakeState& state) {
 	// The first byte should be OP_RETURN, while the second byte should be a
 	// valid push length.
 	if(!firstOutputScript.HasOpReturnB() || !pushLengthValid) {
-		return state.Invalid(false, REJECT_INVALID, "ssgen-output",
+		return state.Invalid(false, STX_REJECT_INVALID, "ssgen-output",
 				"Second SSGen output had an invalid prefix");
 	}
 
@@ -164,7 +162,7 @@ bool CheckSSgen(const CTransaction& tx, CValidationStakeState& state) {
 		const CScript& rawScript = tx.vout[outTxIndex].scriptPubKey;
 		Solver(rawScript, whichType, vSolutions);
 		if(whichType != TX_STAKEGEN ){
-			return state.Invalid(false, REJECT_INVALID, "ssgen-output",
+			return state.Invalid(false, STX_REJECT_INVALID, "ssgen-output",
 					strprintf("SSGen tx output at output index %d was not an OP_SSGEN tagged output", outTxIndex));
 		}
 		whichType = TX_NONSTANDARD;
@@ -223,19 +221,19 @@ bool CheckSStx(const CTransaction& tx, CValidationStakeState &state){
 	// CheckTransactionSanity already makes sure that number of inputs is
 	// greater than 0, so no need to check that.
 	if (tx.vin.size() > MaxInputsPerSStx) {
-		return state.Invalid(false, REJECT_INVALID, "sstx-input",
+		return state.Invalid(false, STX_REJECT_INVALID, "sstx-input",
 				"SStx has too many inputs");
 	}
 
 	// Check to make sure there aren't too many outputs.
 	if (tx.vout.size() > MaxOutputsPerSStx) {
-		return state.Invalid(false, REJECT_INVALID, "sstx-output",
+		return state.Invalid(false, STX_REJECT_INVALID, "sstx-output",
 				"SStx has too many outputs");
 	}
 
 	// Check to make sure there are some outputs.
 	if (tx.vout.size() == 0) {
-		return state.Invalid(false, REJECT_INVALID, "sstx-output",
+		return state.Invalid(false, STX_REJECT_INVALID, "sstx-output",
 				"SStx has no outputs");
 	}
 
@@ -246,13 +244,13 @@ bool CheckSStx(const CTransaction& tx, CValidationStakeState &state){
 	const CScript& ZeroOutputScript = tx.vout[0].scriptPubKey;
 	Solver(ZeroOutputScript, whichType, vSolutions);
 	if(whichType != TX_STAKETX_SUBMMISSION ){
-		return state.Invalid(false, REJECT_INVALID, "sstx-output",
+		return state.Invalid(false, STX_REJECT_INVALID, "sstx-output",
 				"First SStx output should have been OP_SSTX tagged, but it was not");
 	}
 	whichType = TX_NONSTANDARD;
 	// Ensure that the number of outputs is equal to the number of inputs + 1.
 	if((tx.vin.size() * 2 + 1) != tx.vout.size()){
-		return state.Invalid(false, REJECT_INVALID, "sstx-format",
+		return state.Invalid(false, STX_REJECT_INVALID, "sstx-format",
 				"The number of inputs in the SStx tx was not the number of outputs/2 - 1");
 	}
 
@@ -261,7 +259,7 @@ bool CheckSStx(const CTransaction& tx, CValidationStakeState &state){
 		if(outTxIndex % 2 == 0){
 			Solver(rawScript, whichType, vSolutions);
 			if(whichType != TX_STAKETX_CHANGE){
-				return state.Invalid(false, REJECT_INVALID, "sstx-output",
+				return state.Invalid(false, STX_REJECT_INVALID, "sstx-output",
 						strprintf("SStx output at output index %d was not an sstx change output", outTxIndex));
 			}
 			whichType = TX_NONSTANDARD;
@@ -272,14 +270,14 @@ bool CheckSStx(const CTransaction& tx, CValidationStakeState &state){
 		// NullDataTy output.
 		Solver(rawScript, whichType, vSolutions);
 		if(whichType != TX_NULL_DATA){
-			return state.Invalid(false, REJECT_INVALID, "sstx-output",
+			return state.Invalid(false, STX_REJECT_INVALID, "sstx-output",
 					strprintf("SStx output at output index %d was not a NullData (OP_RETURN) push", outTxIndex));
 		}
 		whichType = TX_NONSTANDARD;
 
 		// The length of the output script should be between 32 and 77 bytes long.
 		if(rawScript.size() < SStxPKHMinOutSize || rawScript.size() > SStxPKHMaxOutSize){
-			return state.Invalid(false, REJECT_INVALID, "sstx-output",
+			return state.Invalid(false, STX_REJECT_INVALID, "sstx-output",
 					strprintf("SStx output at output index %d was a NullData (OP_RETURN) push of the wrong size", outTxIndex));
 		}
 
@@ -289,7 +287,7 @@ bool CheckSStx(const CTransaction& tx, CValidationStakeState &state){
 		// The first byte should be OP_RETURN, while the second byte should be a
 		// valid push length.
 		if(!rawScript.HasOpReturnB() || !pushLengthValid){
-			return state.Invalid(false, REJECT_INVALID, "sstx-output",
+			return state.Invalid(false, STX_REJECT_INVALID, "sstx-output",
 					strprintf("sstx commitment at output idx %d had an invalid prefix", outTxIndex));
 		}
 
@@ -307,11 +305,11 @@ bool SStxNullOutputAmounts(vec64 amounts, vec64 changeAmounts, int64_t amountTic
 	uint16_t lengthAmounts = amounts.size();
 
 	if(lengthAmounts != changeAmounts.size()){
-		return state.Invalid(false, REJECT_INVALID, "sstx-amount", "amounts was not equal in length to change amounts!");
+		return state.Invalid(false, STX_REJECT_INVALID, "sstx-amount", "amounts was not equal in length to change amounts!");
 	}
 
 	if(amountTicket <= 0){
-		return state.Invalid(false, REJECT_INVALID, "sstx-amount", "committed amount was too small!");
+		return state.Invalid(false, STX_REJECT_INVALID, "sstx-amount", "committed amount was too small!");
 	}
 
 	contribAmounts.resize(lengthAmounts);
@@ -325,7 +323,7 @@ bool SStxNullOutputAmounts(vec64 amounts, vec64 changeAmounts, int64_t amountTic
 	for(uint16_t index = 0; index < lengthAmounts; index++){
 		contribAmounts[index] = amounts[index] - changeAmounts[index];
 		if(contribAmounts[index] < 0){
-			return state.Invalid(false, REJECT_INVALID, "sstx-amount",
+			return state.Invalid(false, STX_REJECT_INVALID, "sstx-amount",
 					strprintf("change at idx %d spent more coins than allowed (have: %d, spent: %d)", index, amounts[index], changeAmounts[index]));
 		}
 		sum += contribAmounts[index];
@@ -419,19 +417,19 @@ bool CheckSSRtx(const CTransaction& tx, CValidationStakeState &state){
 	// CheckTransactionSanity already makes sure that number of inputs is
 	// greater than 0, so no need to check that.
 	if(tx.vin.size() != NumInputsPerSSRtx){
-		return state.Invalid(false, REJECT_INVALID, "ssrtx-input",
+		return state.Invalid(false, STX_REJECT_INVALID, "ssrtx-input",
 				"SSRtx has an invalid number of inputs");
 	}
 
 	// Check to make sure there aren't too many outputs.
 	if(tx.vout.size() > MaxOutputsPerSSRtx){
-		return state.Invalid(false, REJECT_INVALID, "ssrtx-output",
+		return state.Invalid(false, STX_REJECT_INVALID, "ssrtx-output",
 				"SSRtx has too many outputs");
 	}
 
 	// Check to make sure there are some outputs.
 	if(tx.vout.size() == 0){
-		return state.Invalid(false, REJECT_INVALID, "ssrtx-output",
+		return state.Invalid(false, STX_REJECT_INVALID, "ssrtx-output",
 				"SSRtx has no output");
 	}
 
@@ -457,7 +455,7 @@ bool CheckSSRtx(const CTransaction& tx, CValidationStakeState &state){
 		const CScript& rawScript = tx.vout[outTxIndex].scriptPubKey;
 		Solver(rawScript, whichType, vSolutions);
 		if(whichType != TX_STAKETX_REVOCATION){
-			return state.Invalid(false, REJECT_INVALID, "ssrtx-output",
+			return state.Invalid(false, STX_REJECT_INVALID, "ssrtx-output",
 					strprintf("SSRtx output at output index %d was not an OP_SSRTX tagged output", outTxIndex));
 		}
 	}

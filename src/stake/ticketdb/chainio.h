@@ -12,8 +12,6 @@
 #define BITCOIN_STAKE_TICKETDB_CHAINIO_H_
 
 #include <stdio.h>
-#include <dbwrapper.h>
-#include <serialize.h>
 #include <uint256.h>
 #include <stake/tickettreap/common.h>
 
@@ -22,6 +20,7 @@
 #include <utility>
 #include <vector>
 #include <stdint.h>
+#include <memory>
 
 
 // upgradeStartedBit if the bit flag for whether or not a database
@@ -69,9 +68,6 @@ struct DatabaseInfo;
 struct BestChainState;
 struct UndoTicketData;
 struct ticketHashes;
-class chainStateDB;
-class ticketStateDB;
-
 
 // TicketHashes is a list of ticket hashes that will mature in TicketMaturity
 // many blocks from the block in which they were included.
@@ -196,19 +192,19 @@ struct DatabaseInfo{
 		uint32_t rawversion;
 		if(upgradeStarted){
 			rawversion = version | upgradeStartedBit;
-			s << VARINT(rawversion);
+			s << rawversion;
 		} else {
-			s << VARINT(version);
+			s << version;
 		}
 
-		s << VARINT(date);
+		s << date;
 	}
 
 	template<typename Stream>
 	void Unserialize(Stream& s) {
 		uint32_t rawversion;
-		s >> VARINT(rawversion);
-		s >> VARINT(date);
+		s >> rawversion;
+		s >> date;
 		version = rawversion & (~upgradeStartedBit);
 		upgradeStarted = (rawversion & upgradeStartedBit) >> 31;
 	}
@@ -237,7 +233,7 @@ struct DatabaseInfo{
 // state in bytes.
 struct BestChainState{
 	uint256 hash;
-	uint32_t height;
+	int64_t height;
 	uint32_t live;
 	uint64_t missed;
 	uint64_t revoked;
@@ -247,11 +243,11 @@ struct BestChainState{
 	template<typename Stream>
 	void Serialize(Stream &s) const {
 		s << hash;
-		s << VARINT(height);
-		s << VARINT(live);
-		s << VARINT(missed);
-		s << VARINT(revoked);
-		s << VARINT(perblock);
+		s << height;
+		s << live;
+		s << missed;
+		s << revoked;
+		s << perblock;
 		for(uint16_t num = 0; num < perblock; num++){
 			s << nextwinners[num];
 		}
@@ -260,11 +256,11 @@ struct BestChainState{
 	template<typename Stream>
 	void Unserialize(Stream& s) {
 		s >> hash;
-		s >> VARINT(height);
-		s >> VARINT(live);
-		s >> VARINT(missed);
-		s >> VARINT(revoked);
-		s >> VARINT(perblock);
+		s >> height;
+		s >> live;
+		s >> missed;
+		s >> revoked;
+		s >> perblock;
 		nextwinners.resize(perblock);
 		for(uint16_t num = 0; num < perblock; num++){
 			s >> nextwinners[num];
@@ -297,15 +293,15 @@ struct UndoTicketData{
 	template<typename Stream>
 	void Serialize(Stream &s) const {
 		s << ticketHash;
-		s << VARINT(ticketHeight);
-		s << VARINT(flag);
+		s << ticketHeight;
+		s << flag;
 	}
 
 	template<typename Stream>
 	void Unserialize(Stream& s) {
 		s >> ticketHash;
-		s >> VARINT(ticketHeight);
-		s >> VARINT(flag);
+		s >> ticketHeight;
+		s >> flag;
 	}
 
 };
@@ -331,48 +327,17 @@ struct singleTicketState {
 	template<typename Stream>
 	void Serialize(Stream &s) const {
 		s << hash;
-		s << VARINT(height);
-		s << VARINT(ticketstate);
+		s << height;
+		s << ticketstate;
 	}
 
 	template<typename Stream>
 	void Unserialize(Stream& s) {
 		s >> hash;
-		s >> VARINT(height);
-		s >> VARINT(ticketstate);
+		s >> height;
+		s >> ticketstate;
 	}
 };
-
-class chainStateDB : public CDBWrapper{
-
-public:
-	explicit chainStateDB(size_t nCacheSize, bool fMemory = false, bool fWipe = false);
-
-	bool writeDatabaseInfo(const DatabaseInfo &dbinfo);
-	bool readDatabaseInfo(DatabaseInfo &dbinfo);
-
-	bool writeBestChainState(const BestChainState &state);
-	bool readBestChainState(BestChainState &state);
-
-	bool writeUndoTicketData(uint32_t height, std::vector<UndoTicketData>& undoTickets);
-	bool readUndoTicketData(uint32_t height, std::vector<UndoTicketData>& undoTicket);
-	bool earseUndoTicketData(uint32_t height);
-
-    bool writeTicketHashes(uint32_t height, TicketHashes &Hashes);
-    bool readTicketHashes(uint32_t height, TicketHashes &Hashes);
-    bool earseTicketHashes(uint32_t height);
-
-};
-
-class ticketStateDB: public CDBWrapper {
-public:
-	explicit ticketStateDB(std::string dbname, size_t nCacheSize, bool fMemory = false, bool fWipe = false);
-
-    bool writeSingleTicketState(std::string dbPrefix, const singleTicketState &sinTicket);
-    bool earseSingleTicketState(std::string dbPrefix, uint256& hash);
-    bool readALLSingleTicketState(std::string dbPrefix, Immutable& outImu);
-};
-
 
 #endif /* BITCOIN_STAKE_TICKETDB_CHAINIO_H_ */
 

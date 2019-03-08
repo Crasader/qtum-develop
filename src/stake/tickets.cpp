@@ -9,7 +9,9 @@
  */
 
 #include <stake/tickets.h>
-#include <validation.h>
+#include <crypto/sha256.h>
+#include <stakedb.h>
+
 #include <util.h>
 
 // TODO false add content
@@ -28,7 +30,8 @@ bool InitDatabaseState(Consensus::Params& params, TicketNode& node){
 	pdbinfoview->writeTicketHashes(node.height, node.databaseBlockTickets);
 
 	// Write the new best state to the database.
-	TicketHashes NextWinners(node.params.TicketsPerBlock);
+	TicketHashes NextWinners;
+	NextWinners.resize(node.params.TicketsPerBlock);
 
 	// Write the new best state to the database.
 	const BestChainState bcState = {
@@ -167,6 +170,16 @@ bool safeDelete(Immutable& imu, uint256& hash){
 
 	imu.Delete(hash);
 	return true;
+}
+
+void TicketNode::SetNull(){
+	height = -1;
+	liveTickets = Immutable();
+	missedTickets = Immutable();
+	revokedTickets = Immutable();
+	databaseUndoUpdate.clear();
+	databaseBlockTickets.clear();
+	nextwinners.clear();
 }
 
 // ForEachByHeight iterates all elements in the tree less than a given height in
@@ -311,12 +324,13 @@ bool connectNode(TicketNode& node, uint256 lotteryIV, TicketHashes& ticketsVoted
 	// Add all the new tickets.
 	for(auto newTicket : newTickets){
 		uint8_t newflag = 0;
-		if(safePut(nodeOut.liveTickets, newTicket, nodeOut.height, newflag) == false){
+		uint32_t heightCopy = (uint32_t)nodeOut.height;
+		if(safePut(nodeOut.liveTickets, newTicket, heightCopy, newflag) == false){
 			return false;
 		}
 		UndoTicketData undoTicket = {
 			.ticketHash = newTicket,
-			.ticketHeight =  nodeOut.height,
+			.ticketHeight =  (uint32_t)nodeOut.height,
 			.flag = newflag
 		};
 		nodeOut.databaseUndoUpdate.push_back(undoTicket);

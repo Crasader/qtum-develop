@@ -8,7 +8,7 @@
  */
 
 #include <test/test_bitcoin.h>
-#include <stake/ticketdb/chainio.h>
+#include <stakedb.h>
 #include <tinyformat.h>
 #include <uint256.h>
 #include <utiltime.h>

@@ -9,6 +9,7 @@
 #include <primitives/transaction.h>
 #include <serialize.h>
 #include <uint256.h>
+#include <wallet/test/wallet_stx_def.h>
 
 #include <string>
 
@@ -77,6 +78,14 @@ public:
         READWRITE(prevoutStake);
         if (!(s.GetType() & SER_WITHOUT_SIGNATURE))
             READWRITE(vchBlockSig);
+        if(TestStxDebug){
+        	READWRITE(Voters);
+        	READWRITE(FreshStake);
+        	READWRITE(Revocations);
+        	READWRITE(PoolSize);
+        	READWRITE(sBits);
+        	READWRITE(nVoteBits);
+        }
     }
 
     void SetNull()
@@ -91,6 +100,13 @@ public:
         hashUTXORoot.SetNull(); // qtum
         vchBlockSig.clear();
         prevoutStake.SetNull();
+
+        Voters = 0;
+        FreshStake = 0;
+        Revocations = 0;
+        PoolSize = 0;
+        sBits = 0;
+        nVoteBits = 0;
     }
 
     bool IsNull() const
@@ -144,6 +160,14 @@ public:
             this->hashUTXORoot   = other.hashUTXORoot;
             this->vchBlockSig    = other.vchBlockSig;
             this->prevoutStake   = other.prevoutStake;
+            if(TestStxDebug){
+                this->Voters = other.Voters;
+                this->FreshStake = other.FreshStake;
+                this->Revocations = other.Revocations;
+                this->PoolSize = other.PoolSize;
+                this->sBits = other.sBits;
+                this->nVoteBits = other.nVoteBits;
+            }
         }
         return *this;
     }
@@ -182,12 +206,16 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action) {
         READWRITE(*(CBlockHeader*)this);
         READWRITE(vtx);
+        if(TestStxDebug){
+        	READWRITE(svtx);
+        }
     }
 
     void SetNull()
     {
         CBlockHeader::SetNull();
         vtx.clear();
+        svtx.clear();
         fChecked = false;
     }
 
@@ -209,6 +237,14 @@ public:
         block.hashUTXORoot   = hashUTXORoot; // qtum
         block.vchBlockSig    = vchBlockSig;
         block.prevoutStake   = prevoutStake;
+        if(TestStxDebug){
+        	block.Voters = Voters;
+        	block.FreshStake = FreshStake;
+        	block.Revocations = Revocations;
+        	block.PoolSize = PoolSize;
+        	block.sBits = sBits;
+        	block.nVoteBits = nVoteBits;
+        }
         return block;
     }
 

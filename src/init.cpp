@@ -35,7 +35,7 @@
 #include <script/standard.h>
 #include <script/sigcache.h>
 #include <scheduler.h>
-#include <stake/ticketdb/chainio.h>
+#include <stakedb.h>
 #include <timedata.h>
 #include <txdb.h>
 #include <txmempool.h>

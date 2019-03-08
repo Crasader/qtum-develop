@@ -148,6 +148,8 @@ BITCOIN_CORE_H = \
   script/ismine.h \
   stake/ticketdb/chainio.h \
   stake/staketx.h \
+  stake/tickets.h \
+  stakedb.h \
   stakenode.h \
   streams.h \
   support/allocators/secure.h \
@@ -239,7 +241,9 @@ libbitcoin_server_a_SOURCES = \
   txmempool.cpp \
   ui_interface.cpp \
   validation.cpp \
+  stakedb.cpp \
   stakenode.cpp \
+  stake/tickets.cpp \
   validationinterface.cpp \
   versionbits.cpp \
   qtum/qtumstate.cpp \
@@ -595,34 +599,10 @@ endif
 libbitcoin_stake_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
 libbitcoin_stake_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 libbitcoin_stake_a_SOURCES = \
-  validation.cpp \
-  dbwrapper.cpp \
-  uint256.cpp \
-  uint256.h \
-  prevector.h \
-  utilstrencodings.h \
-  utilstrencodings.cpp \
-  tinyformat.h \
-  serialize.h \
-  primitives/transaction.cpp \
-  primitives/transaction.h \
-  primitives/block.cpp \
-  primitives/block.h \
-  script/script_error.cpp \
-  script/script_error.h \
-  consensus/validation.h \
-  consensus/params.h \
-  crypto/sha256.cpp \
-  crypto/sha256.h \
-  crypto/common.h \
-  script/script.h \
-  script/script.cpp \
   stake/staketx.cpp \
   stake/tickettreap/common.h \
   stake/tickettreap/common.cpp \
   stake/ticketdb/chainio.cpp \
-  stake/tickets.h \
-  stake/tickets.cpp \
   stake/lottery.h \
   stake/lottery.cpp \
   $(BITCOIN_CORE_H)
@@ -661,8 +641,7 @@ qtumd_LDADD = \
   $(LIBLEVELDB_SSE42) \
   $(LIBMEMENV) \
   $(LIBCRYPTOPP) \
-  $(LIBSECP256K1) \
-  $(LIBBITCOIN_STAKE)
+  $(LIBSECP256K1)
 
 qtumd_LDADD += $(BOOST_LIBS) $(BDB_LIBS) $(SSL_LIBS) $(CRYPTO_LIBS) $(MINIUPNPC_LIBS) $(EVENT_PTHREADS_LIBS) $(EVENT_LIBS) $(ZMQ_LIBS)
 

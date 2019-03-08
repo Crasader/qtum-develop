@@ -17,7 +17,6 @@
 #include <stake/lottery.h>
 #include <primitives/block.h>
 
-#include <stdint.h>
 #include <vector>
 
 using valtype = std::vector<unsigned char>;
@@ -40,10 +39,17 @@ class TicketNode;
 class TicketNode {
 
 public:
-	TicketNode() {}
-	explicit TicketNode(Consensus::Params& params): height(0), params(params) {}
+	TicketNode() { SetNull(); }
+	explicit TicketNode(Consensus::Params& params): params(params) { SetNull(); }
 	explicit TicketNode(TicketNode& node): height(node.height), liveTickets(node.liveTickets), missedTickets(node.missedTickets), revokedTickets(node.revokedTickets), params(node.params) {}
 	explicit TicketNode(const TicketNode& node): height(node.height), liveTickets(node.liveTickets), missedTickets(node.missedTickets), revokedTickets(node.revokedTickets), params(node.params) {}
+
+	void SetNull();
+
+	bool IsNull(){
+		return height == -1;
+	}
+
 	// UndoData returns the stored UndoTicketDataSlice used to remove this node
 	// and restore it to the parent state.
 	std::vector<UndoTicketData> UndoData() const{
@@ -184,7 +190,7 @@ public:
 	friend bool WriteDisconnectedBestNode(TicketNode& node, uint256& hash, std::vector<UndoTicketData>& childUndoData);
 
 private:
-	uint32_t height;
+	int64_t height;
 
 	// liveTickets is the treap of the live tickets for this node.
 	Immutable liveTickets;

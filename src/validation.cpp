@@ -29,7 +29,6 @@
 #include <script/script.h>
 #include <script/sigcache.h>
 #include <script/standard.h>
-#include <stake/ticketdb/chainio.h>
 #include <stake/staketx.h>
 #include <stakenode.h>
 #include <timedata.h>
@@ -181,7 +180,7 @@ private:
 	// In addition, some of the fields are stored in the database so the
 	// chain state can be quickly reconstructed on load.
     mutable CCriticalSection cs_stateLock;
-    std::shared_ptr<BestState> stateSnapshot;
+    std::shared_ptr<BestState> stateSnapshot = std::make_shared<BestState>();
 
     ////////////////////////////////////////////////////////////////
 
@@ -203,7 +202,8 @@ public:
     DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* pindex, CCoinsViewCache& view, bool* pfClean);
     bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pindex,
                     CCoinsViewCache& view, const CChainParams& chainparams, bool fJustCheck = false);
-    bool connectBlockMock(CValidationState& state, CBlockIndex* node, const CBlock& block, CBlock& parent, CCoinsViewCache& view, const CChainParams& chainparams, TxSpends& stxos, bool fJustCheck);
+    bool ConnectBlockMock(const CBlock& block, const CBlock& parent, CValidationState& state, CBlockIndex* node,
+    				CCoinsViewCache& view, const CChainParams& chainparams, bool fJustCheck = false);
     bool UpdateHashProof(const CBlock& block, CValidationState& state, const Consensus::Params& consensusParams, CBlockIndex* pindex, CCoinsViewCache& view);
     bool UpdateHashProofMock(const CBlock& block, CValidationState& state, const Consensus::Params& consensusParams, CBlockIndex* node, CCoinsViewCache& view);
 
@@ -226,7 +226,7 @@ public:
     //////////////////////////////////////////////////////////////// decred
     bool updateStateSnapshot(BestState& state){
     	LOCK(cs_stateLock);
-    	stateSnapshot.reset(&state);
+    	stateSnapshot = std::make_shared<BestState>(state);
     	return true;
     }
     ////////////////////////////////////////////////////////////////
@@ -333,10 +333,6 @@ CBlockIndex* FindForkInGlobalIndex(const CChain& chain, const CBlockLocator& loc
 
 std::unique_ptr<CCoinsViewDB> pcoinsdbview;
 std::unique_ptr<CCoinsViewCache> pcoinsTip;
-std::unique_ptr<chainStateDB> pdbinfoview;
-std::unique_ptr<ticketStateDB> pliveticketview;
-std::unique_ptr<ticketStateDB> pmissedticketview;
-std::unique_ptr<ticketStateDB> prevokedticketview;
 std::unique_ptr<CBlockTreeDB> pblocktree;
 std::unique_ptr<StorageResults> pstorageresult;
 
@@ -3205,7 +3201,9 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
 // it would be inefficient to repeat it.
 //
 // This function MUST be called with the chain state lock held (for writes).
-bool CChainState::connectBlockMock(CValidationState& state, CBlockIndex* node, const CBlock& block, CBlock& parent, CCoinsViewCache& view, const CChainParams& chainparams, TxSpends& stxos, bool fJustCheck){
+bool CChainState::ConnectBlockMock(const CBlock& block, const CBlock& parent, CValidationState& state, CBlockIndex* node,
+		CCoinsViewCache& view, const CChainParams& chainparams, bool fJustCheck)
+{
     AssertLockHeld(cs_main);
     assert(node);
     // pindex->phashBlock can be null if called by CreateNewBlock/TestBlockValidity
@@ -3368,13 +3366,13 @@ bool CChainState::connectBlockMock(CValidationState& state, CBlockIndex* node, c
 
     //////////////////////////////////////////////////////////////// decred
 
-    // Sanity check the correct number of stxos are provided.
-    if(stxos.size() != countSpentOutputs(const_cast<CBlock&>(block), parent)){
-    	return error("provided %v stxos for block %v (height %v), but counted %v spent utxos", stxos.size(),
-    			node->phashBlock, node->nHeight, countSpentOutputs(const_cast<CBlock&>(block), parent));
-    }
+//    // Sanity check the correct number of stxos are provided.
+//    if(stxos.size() != countSpentOutputs(const_cast<CBlock&>(block), const_cast<CBlock&>(parent))){
+//    	return error("provided %v stxos for block %v (height %v), but counted %v spent utxos", stxos.size(),
+//    			node->phashBlock, node->nHeight, countSpentOutputs(const_cast<CBlock&>(block), const_cast<CBlock&>(parent)));
+//    }
 
-    if(chainActive.flushBlockIndex()){
+    if(!chainActive.flushBlockIndex()){
     	return error("%s: flushBlockIndex flush modeify node failed", __func__);
     }
 
@@ -3382,10 +3380,10 @@ bool CChainState::connectBlockMock(CValidationState& state, CBlockIndex* node, c
 	// may have yet to have been filled in.  In all cases this
 	// should simply give a pointer to data already prepared, but
 	// run this anyway to be safe.
-    std::shared_ptr<TicketNode> stakeNode;
+    std::shared_ptr<TicketNode> stakeNode = std::make_shared<TicketNode>();
     fetchStakeNode(chainparams.GetConsensus(), node, stakeNode);
 
-    {	// TODO move to ConnectTip, ypf
+    {
     	// Generate a new best state snapshot that will be used to update the
     	// database and later memory if all database updates are successful.
     	uint64_t curTotalTxns = stateSnapshot->totaltxns;
@@ -3397,10 +3395,10 @@ bool CChainState::connectBlockMock(CValidationState& state, CBlockIndex* node, c
 
     	// Calculate the number of transactions that would be added by adding
     	// this block.
-    	uint64_t numTxns = countNumberOfTransactions(const_cast<CBlock&>(block), parent);
+    	uint64_t numTxns = countNumberOfTransactions(const_cast<CBlock&>(block), const_cast<CBlock&>(parent));
 
     	// Calculate the exact subsidy produced by adding the block.
-    	int64_t subsidy = CalculateAddedSubsidy(const_cast<CBlock&>(block), parent, view);
+    	int64_t subsidy = CalculateAddedSubsidy(const_cast<CBlock&>(block), const_cast<CBlock&>(parent), view);
 
     	uint64_t blockSize = ::GetSerializeSize(block, SER_NETWORK, PROTOCOL_VERSION | SERIALIZE_TRANSACTION_NO_WITNESS);
     	BestState state;
@@ -3415,7 +3413,7 @@ bool CChainState::connectBlockMock(CValidationState& state, CBlockIndex* node, c
     }
 
     // Insert the block into the stake database.
-    if(WriteConnectedBestNode(*stakeNode, *node->phashBlock)){
+    if(!stakeNode->IsNull() && WriteConnectedBestNode(*stakeNode, *node->phashBlock)){
     	return error("%s: WriteConnectedBestNode update current ticketnode state failed", __func__);
     }
     ////////////////////////////////////////////////////////////////
@@ -3485,6 +3483,16 @@ bool CChainState::connectBlockMock(CValidationState& state, CBlockIndex* node, c
                 return error("ConnectBlock(): CheckInputs on %s failed with %s",
                     tx.GetHash().ToString(), FormatStateMessage(state));
             control.Add(vChecks);
+
+            for(const CTxIn& j : tx.vin){
+                if(!j.scriptSig.HasOpSpend()){
+                    const CTxOut& prevout = view.AccessCoin(j.prevout).out;
+                    if((prevout.scriptPubKey.HasOpCreate() || prevout.scriptPubKey.HasOpCall())){
+                        return state.DoS(100, error("ConnectBlock(): Contract spend without OP_SPEND in scriptSig"),
+                                REJECT_INVALID, "bad-txns-invalid-contract-spend");
+                    }
+                }
+            }
 
         }
 
@@ -3633,6 +3641,81 @@ bool CChainState::connectBlockMock(CValidationState& state, CBlockIndex* node, c
         }
         UpdateCoins(tx, view, i == 0 ? undoDummy : blockundo.vtxundo.back(), node->nHeight);
     }
+
+    //////////////////////////////////////////////////////////////// decred
+    for (unsigned int i = 0; i < block.svtx.size(); i++)
+    {
+        const CTransaction &tx = *(block.svtx[i]);
+
+        nInputs += tx.vin.size();
+
+		CAmount txfee = 0;
+		if (!Consensus::CheckTxInputs(tx, state, view, node->nHeight, txfee)) {
+			return error("%s: Consensus::CheckTxInputs: %s, %s", __func__, tx.GetHash().ToString(), FormatStateMessage(state));
+		}
+		nFees += txfee;
+		if (!MoneyRange(nFees)) {
+			return state.DoS(100, error("%s: accumulated fee in the block out of range.", __func__),
+							 REJECT_INVALID, "bad-txns-accumulated-fee-outofrange");
+		}
+
+		// Check that transaction is BIP68 final
+		// BIP68 lock checks (as opposed to nLockTime checks) must
+		// be in ConnectBlock because they require the UTXO set
+		prevheights.resize(tx.vin.size());
+		for (size_t j = 0; j < tx.vin.size(); j++) {
+			prevheights[j] = view.AccessCoin(tx.vin[j].prevout).nHeight;
+		}
+
+		if (!SequenceLocks(tx, nLockTimeFlags, &prevheights, *node)) {
+			return state.DoS(100, error("%s: contains a non-BIP68-final transaction", __func__),
+							 REJECT_INVALID, "bad-txns-nonfinal");
+		}
+
+        // GetTransactionSigOpCost counts 3 types of sigops:
+        // * legacy (always)
+        // * p2sh (when P2SH enabled in flags and excludes coinbase)
+        // * witness (when witness enabled in flags and excludes coinbase)
+        nSigOpsCost += GetTransactionSigOpCost(tx, view, flags);
+        if (nSigOpsCost > dgpMaxBlockSigOps)
+            return state.DoS(100, error("ConnectBlock(): too many sigops"),
+                             REJECT_INVALID, "bad-blk-sigops");
+
+        txdata.emplace_back(tx);
+
+        bool hasOpSpend = tx.HasOpSpend();
+
+		std::vector<CScriptCheck> vChecks;
+		bool fCacheResults = fJustCheck; /* Don't cache results if we're actually connecting blocks (still consult the cache, though) */
+		//note that coinbase and coinstake can not contain any contract opcodes, this is checked in CheckBlock
+		if (!CheckInputs(tx, state, view, fScriptChecks, flags, fCacheResults, fCacheResults, txdata[i], (hasOpSpend || tx.HasCreateOrCall()) ? nullptr : (nScriptCheckThreads ? &vChecks : nullptr)))//nScriptCheckThreads ? &vChecks : nullptr))
+			return error("ConnectBlock(): CheckInputs on %s failed with %s",
+				tx.GetHash().ToString(), FormatStateMessage(state));
+		control.Add(vChecks);
+
+		for(const CTxIn& j : tx.vin){
+			if(!j.scriptSig.HasOpSpend()){
+				const CTxOut& prevout = view.AccessCoin(j.prevout).out;
+				if((prevout.scriptPubKey.HasOpCreate() || prevout.scriptPubKey.HasOpCall())){
+					return state.DoS(100, error("ConnectBlock(): Contract spend without OP_SPEND in scriptSig"),
+							REJECT_INVALID, "bad-txns-invalid-contract-spend");
+				}
+			}
+		}
+
+		int64_t nTxValueIn = view.GetValueIn(tx);
+		int64_t nTxValueOut = tx.GetValueOut();
+		nValueIn += nTxValueIn;
+		nValueOut += nTxValueOut;
+
+        CTxUndo undoDummy;
+        if (i > 0) {
+            blockundo.vtxundo.push_back(CTxUndo());
+        }
+        UpdateCoins(tx, view, i == 0 ? undoDummy : blockundo.vtxundo.back(), node->nHeight);
+    }
+    ////////////////////////////////////////////////////////////////
+
     int64_t nTime3 = GetTimeMicros(); nTimeConnect += nTime3 - nTime2;
     LogPrint(BCLog::BENCH, "      - Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin) [%.2fs (%.2fms/blk)]\n", (unsigned)block.vtx.size(), MILLI * (nTime3 - nTime2), MILLI * (nTime3 - nTime2) / block.vtx.size(), nInputs <= 1 ? 0 : MILLI * (nTime3 - nTime2) / (nInputs-1), nTimeConnect * MICRO, nTimeConnect * MILLI / nBlocksTotal);
 
@@ -4127,7 +4210,16 @@ bool CChainState::ConnectTip(CValidationState& state, const CChainParams& chainp
         dev::h256 oldHashStateRoot(globalState->rootHash()); // qtum
         dev::h256 oldHashUTXORoot(globalState->rootHashUTXO()); // qtum
 
-        bool rv = ConnectBlock(blockConnecting, state, pindexNew, view, chainparams);
+        bool rv = false;
+        if(TestStxDebug && (pindexNew->pprev != chainActive.Genesis()) && (pindexNew != chainActive.Genesis())){
+            std::shared_ptr<CBlock> pblockPre = std::make_shared<CBlock>();
+            if (!ReadBlockFromDisk(*pblockPre, pindexNew->pprev, chainparams.GetConsensus()))
+                return AbortNode(state, "Failed to read block");
+            const CBlock pprevBlock = *pblockPre;
+        	rv = ConnectBlockMock(blockConnecting, pprevBlock, state, pindexNew, view, chainparams);
+        } else {
+        	rv = ConnectBlock(blockConnecting, state, pindexNew, view, chainparams);
+        }
         GetMainSignals().BlockChecked(blockConnecting, state);
         if (!rv) {
             if (state.IsInvalid())

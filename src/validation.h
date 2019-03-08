@@ -31,7 +31,7 @@
 #include <atomic>
 
 #include <consensus/consensus.h>
-#include <stake/ticketdb/chainio.h>
+#include <stakedb.h>
 
 /////////////////////////////////////////// qtum
 #include <qtum/qtumstate.h>
@@ -575,18 +575,6 @@ extern std::unique_ptr<CCoinsViewDB> pcoinsdbview;
 
 /** Global variable that points to the active CCoinsView (protected by cs_main) */
 extern std::unique_ptr<CCoinsViewCache> pcoinsTip;
-
-/** Global variable that points to dbinfo database TODO (protected by cs_main)?*/
-extern std::unique_ptr<chainStateDB> pdbinfoview;
-
-/** Global variable that points to live ticket database TODO (protected by cs_main)?*/
-extern std::unique_ptr<ticketStateDB> pliveticketview;
-
-/** Global variable that points to missed ticket database TODO (protected by cs_main)?*/
-extern std::unique_ptr<ticketStateDB> pmissedticketview;
-
-/** Global variable that points to revoked ticket database TODO (protected by cs_main)?*/
-extern std::unique_ptr<ticketStateDB> prevokedticketview;
 
 /** Global variable that points to the active block tree (protected by cs_main) */
 extern std::unique_ptr<CBlockTreeDB> pblocktree;

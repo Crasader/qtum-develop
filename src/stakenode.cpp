@@ -58,7 +58,7 @@ bool maybeFetchNewTickets(const Consensus::Params& consensusParams, CBlockIndex*
 bool maybeFetchTicketInfo(const Consensus::Params& consensusParams, CBlockIndex* node, CValidationStakeState& state){
 	// Load and populate the tickets maturing in this block when they are not
 	// already loaded.
-	if (maybeFetchNewTickets(consensusParams, node, state)){
+	if (!maybeFetchNewTickets(consensusParams, node, state)){
 		return error("%s: maybeFetchNewTickets failed. reason: %s", __func__, state.FormatStateMessage());
 	}
 
@@ -81,7 +81,7 @@ bool fetchStakeNode(const Consensus::Params& consensusParams, CBlockIndex* node,
 	CValidationStakeState state;
 
 	// Return the cached immutable stake node when it is already loaded.
-	if(node->stakeNode != nullptr){
+	if(!node->stakeNode->IsNull()){
 		stakeNode = node->stakeNode;
 		return true;
 	}
@@ -90,7 +90,7 @@ bool fetchStakeNode(const Consensus::Params& consensusParams, CBlockIndex* node,
 		LOCK(cs_main);	// TODO temp add lock here, ypf
 		// Create the requested stake node from the parent stake node if it is
 		// already loaded as an optimization.
-		if(node->pprev->stakeNode != nullptr){
+		if(!node->pprev->stakeNode->IsNull()){
 			// Populate the prunable ticket information as needed.
 			if(!maybeFetchTicketInfo(consensusParams, node, state)){
 				return error("%s: invoke maybeFetchTicketInfo failed. reason: %s", __func__, state.FormatStateMessage());
@@ -129,7 +129,7 @@ bool fetchStakeNode(const Consensus::Params& consensusParams, CBlockIndex* node,
 		for(CBlockIndex* n = tip; n != nullptr && n != fork; n = n->pprev){
 			// No need to load nodes that are already loaded.
 			CBlockIndex* prev = n->pprev;
-			if(prev == nullptr || prev->stakeNode != nullptr){
+			if(prev == nullptr || !prev->stakeNode->IsNull()){
 				continue;
 			}
 
@@ -141,7 +141,7 @@ bool fetchStakeNode(const Consensus::Params& consensusParams, CBlockIndex* node,
 			if(!disconnectNode(*n->stakeNode, prev->lotteryIV(), nilUndo, nilparTicket, tempNode)){
 				return state.Invalid(false, REJECT_INVALID, "stx-node", strprintf("%s: disconnectNode failed", __func__));
 			}
-			prev->stakeNode.reset(&tempNode);
+			prev->stakeNode = std::make_shared<TicketNode>(tempNode);
 		}
 
 		// Nothing more to do if the requested node is the fork point itself.
@@ -163,13 +163,13 @@ bool fetchStakeNode(const Consensus::Params& consensusParams, CBlockIndex* node,
 		}
 		for(auto idx : attachNodes){
 			// No need to load nodes that are already loaded.
-			if(idx->stakeNode != nullptr){
+			if(!idx->stakeNode->IsNull()){
 				continue;
 			}
 
 			// Populate the prunable ticket information as needed.
 			if(!maybeFetchTicketInfo(consensusParams, idx, state)){
-				stakeNode = nullptr;
+				stakeNode->SetNull();
 				return error("%s: maybeFetchTicketInfo failed. reason: %s", __func__, state.FormatStateMessage());
 			}
 
@@ -178,7 +178,7 @@ bool fetchStakeNode(const Consensus::Params& consensusParams, CBlockIndex* node,
 			if(!connectNode(*(idx->pprev->stakeNode), idx->lotteryIV(), idx->ticketsVoted, idx->ticketsRevoked, idx->newTickets, tempNode)){
 				return state.Invalid(false, REJECT_INVALID, "stx-node", strprintf("%s: second connectNode failed", __func__));
 			}
-			idx->stakeNode.reset(&tempNode);
+			idx->stakeNode = std::make_shared<TicketNode>(tempNode);;
 		}
 	}
 	stakeNode = node->stakeNode;

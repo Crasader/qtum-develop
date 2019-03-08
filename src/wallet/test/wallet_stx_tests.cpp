@@ -263,13 +263,13 @@ BOOST_AUTO_TEST_CASE(wallet_stx_vote_block)	// test many txs use one utxo
 
     std::string coinbaseAddress = coinbaseKey.GetPubKey().GetID().ToString();
 
-    for(uint16_t bnum = 0; bnum < Params().GetConsensus().TicketMaturity; bnum++){
+    for(uint16_t bnum = 0; bnum < Params().GetConsensus().TicketMaturity * 2; bnum++){
     	AddTxStx();
     }
     auto list2 = wallet->ListCoins();
     BOOST_CHECK_EQUAL(list2.size(), 1);
     BOOST_CHECK_EQUAL(boost::get<CKeyID>(list2.begin()->first).ToString(), coinbaseAddress);
-    BOOST_CHECK_EQUAL(list2.begin()->second.size(), 5);
+    BOOST_CHECK_EQUAL(list2.begin()->second.size(), 9);
 
 
 

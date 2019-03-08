@@ -157,6 +157,23 @@ public:
 		SetNull();
 	}
 
+	BestState(BestState& bs){
+		hash = bs.hash;
+		prehash = bs.prehash;
+		height = bs.height;
+		nbits = bs.nbits;
+		nextpoolsize = bs.nextpoolsize;
+		nextStakeDiff = bs.nextStakeDiff;
+		blocksize = bs.blocksize;
+		numtxns = bs.numtxns;
+		totaltxns = bs.totalsubsidy;
+		medianTime = bs.medianTime;
+		totalsubsidy = bs.totalsubsidy;
+		nextwinningtickets = bs.nextwinningtickets;
+		missedtickets = bs.missedtickets;
+		memcpy(nextfinalstate, bs.nextfinalstate, sizeof(nextfinalstate));
+	}
+
 	uint256* hash;								// The hash of the block.
 	uint256* prehash;							// The previous block hash.
 	int32_t height;								// The height of the block.
@@ -188,6 +205,7 @@ public:
 		missedtickets.clear();
 		memset(nextfinalstate, 0, sizeof(nextfinalstate));
 	}
+
 };
 
 enum BlockStatus: uint32_t {
@@ -354,7 +372,11 @@ public:
         ticketsVoted.clear();			// decred
         ticketsRevoked.clear();			// decred
         votes.clear();					// decred
-        stakeNode.reset();				// decred
+        SetStakeNode(std::make_shared<TicketNode>());	// decred
+    }
+
+    void SetStakeNode(std::shared_ptr<TicketNode> arg){
+    	stakeNode = std::move(arg);
     }
 
     CBlockIndex()
@@ -401,7 +423,7 @@ public:
         return ret;
     }
 
-    CBlockHeader GetBlockHeader() const
+    CBlockHeader GetBlockHeader() const		// TODO, add svtx merkle hash, ypf
     {
         CBlockHeader block;
         block.nVersion       	= nVersion;

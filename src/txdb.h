@@ -15,7 +15,7 @@
 #include <utility>
 #include <vector>
 
-#include <validation.h> // temp
+#include <validation.h>	// temp
 
 class CBlockIndex;
 class CCoinsViewDBCursor;
