@@ -8,7 +8,6 @@
 #include <consensus/consensus.h>
 #include <consensus/validation.h>
 #include <crypto/sha256.h>
-#include <validation.h>
 #include <miner.h>
 #include <net_processing.h>
 #include <ui_interface.h>
@@ -16,6 +15,7 @@
 #include <rpc/server.h>
 #include <rpc/register.h>
 #include <script/sigcache.h>
+#include <stakedb.h>
 #include <wallet/test/wallet_stx_def.h>
 
 #include <memory>
@@ -151,6 +151,106 @@ TestingSetup::~TestingSetup()
         fs::remove_all(pathTemp);
 }
 
+
+//////////////////////////////////////////////////////////////// decred sstx* test
+
+TestingSetupTemp::TestingSetupTemp(const std::string& chainName) : BasicTestingSetup(chainName)
+{
+    setTestFlag(true);
+    SelectParams(chainName);	// active genesis sstx generate
+    const CChainParams& chainparams = Params();
+	// Ideally we'd move all the RPC tests to the functional testing framework
+	// instead of unit tests, but for now we need these here.
+
+	RegisterAllCoreRPCCommands(tableRPC);
+	ClearDatadirCache();
+	pathTemp = fs::temp_directory_path() / strprintf("test_bitcoin_%lu_%i", (unsigned long)GetTime(), (int)(InsecureRandRange(100000)));
+	fs::create_directories(pathTemp);
+	gArgs.ForceSetArg("-datadir", pathTemp.string());
+
+	// We have to run a scheduler thread to prevent ActivateBestChain
+	// from blocking due to queue overrun.
+	threadGroup.create_thread(boost::bind(&CScheduler::serviceQueue, &scheduler));
+	GetMainSignals().RegisterBackgroundSignalScheduler(scheduler);
+
+	mempool.setSanityCheck(1.0);
+	pblocktree.reset(new CBlockTreeDB(1 << 20, true));
+	pcoinsdbview.reset(new CCoinsViewDB(1 << 23, true));
+	pcoinsTip.reset(new CCoinsViewCache(pcoinsdbview.get()));
+
+	int64_t ndbinfoCache = (1 << 25); // 32MiB
+	int64_t nticketCache = (1 << 22); // 4MiB
+	pdbinfoview.reset(new chainStateDB(ndbinfoCache, true));
+	pliveticketview.reset(new ticketStateDB("liveticket", nticketCache, true));
+	pmissedticketview.reset(new ticketStateDB("missedticket", nticketCache, true));
+	prevokedticketview.reset(new ticketStateDB("revokedticket", nticketCache, true));
+
+	std::vector<unsigned char> vOpTrue = {(unsigned char)OP_TRUE};
+    p2shOpTrueAddr = CKeyID(Hash160(vOpTrue));
+    opTrueRedeemScript = CScript() << OP_DATA_1 << OP_RETURN;
+
+////////////////////////////////////////////////////////////// qtum
+	dev::eth::Ethash::init();
+	boost::filesystem::path pathTemp = fs::temp_directory_path() / strprintf("test_bitcoin_%lu_%i", (unsigned long)GetTime(), (int)(GetRand(100000)));
+	boost::filesystem::create_directories(pathTemp);
+	const dev::h256 hashDB(dev::sha3(dev::rlp("")));
+	globalState = std::unique_ptr<QtumState>(new QtumState(dev::u256(0), QtumState::openDB(pathTemp.string(), hashDB, dev::WithExisting::Trust), pathTemp.string(), dev::eth::BaseState::Empty));
+	dev::eth::ChainParams cp((dev::eth::genesisInfo(dev::eth::Network::qtumTestNetwork)));
+	globalSealEngine = std::unique_ptr<dev::eth::SealEngineFace>(cp.createSealEngine());
+	globalState->populateFrom(cp.genesisState);
+	globalState->setRootUTXO(uintToh256(chainparams.GenesisBlock().hashUTXORoot));
+	globalState->db().commit();
+	globalState->dbUtxo().commit();
+	pstorageresult.reset(new StorageResults(pathTemp.string()));
+//////////////////////////////////////////////////////////////
+
+	if (!LoadGenesisBlock(chainparams)) {
+		throw std::runtime_error("LoadGenesisBlock failed.");
+	}
+	{
+		CValidationState state;
+		if (!ActivateBestChain(state, chainparams)) {
+			throw std::runtime_error("ActivateBestChain failed.");
+		}
+	}
+	nScriptCheckThreads = 3;
+	for (int i=0; i < nScriptCheckThreads-1; i++)
+		threadGroup.create_thread(&ThreadScriptCheck);
+	g_connman = std::unique_ptr<CConnman>(new CConnman(0x1337, 0x1337)); // Deterministic randomness for tests.
+	connman = g_connman.get();
+	peerLogic.reset(new PeerLogicValidation(connman, scheduler));
+}
+
+TestingSetupTemp::~TestingSetupTemp()
+{
+        threadGroup.interrupt_all();
+        threadGroup.join_all();
+        GetMainSignals().FlushBackgroundCallbacks();
+        GetMainSignals().UnregisterBackgroundSignalScheduler();
+        g_connman.reset();
+        peerLogic.reset();
+        UnloadBlockIndex();
+        pcoinsTip.reset();
+        pcoinsdbview.reset();
+        pblocktree.reset();
+
+/////////////////////////////////////////////// decred
+        pdbinfoview.reset();
+        pliveticketview.reset();
+        pmissedticketview.reset();
+        prevokedticketview.reset();
+///////////////////////////////////////////////
+
+/////////////////////////////////////////////// // qtum
+        delete globalState.release();
+        globalSealEngine.reset();
+///////////////////////////////////////////////
+
+        fs::remove_all(pathTemp);
+}
+
+////////////////////////////////////////////////////////////////
+
 TestChain100Setup::TestChain100Setup() : TestingSetup(CBaseChainParams::UNITTEST)
 {
     // CreateAndProcessBlock() does not support building SegWit blocks, so don't activate in these tests.
@@ -202,7 +302,7 @@ TestChain100Setup::~TestChain100Setup()
 {
 }
 
-TestChain100SetupTmp::TestChain100SetupTmp() : TestingSetup(CBaseChainParams::UNITTEST)
+TestChain100SetupTmp::TestChain100SetupTmp() : TestingSetupTemp(CBaseChainParams::UNITTEST)
 {
 	setTestFlag(true);
 	changeCoinbaseMaturity();

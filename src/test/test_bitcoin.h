@@ -67,6 +67,21 @@ struct TestingSetup: public BasicTestingSetup {
     ~TestingSetup();
 };
 
+///////////////////////////////////////////////////////////////// decred sstx* test
+
+struct TestingSetupTemp: public BasicTestingSetup {
+    fs::path pathTemp;
+    boost::thread_group threadGroup;
+    CConnman* connman;
+    CScheduler scheduler;
+    std::unique_ptr<PeerLogicValidation> peerLogic;
+
+    explicit TestingSetupTemp(const std::string& chainName = CBaseChainParams::MAIN);
+    ~TestingSetupTemp();
+};
+
+/////////////////////////////////////////////////////////////////
+
 class CBlock;
 struct CMutableTransaction;
 class CScript;
@@ -93,7 +108,7 @@ struct TestChain100Setup : public TestingSetup {
 // Testing fixture that pre-creates a
 // 100-block REGTEST-mode block chain
 //
-struct TestChain100SetupTmp : public TestingSetup {
+struct TestChain100SetupTmp : public TestingSetupTemp {
     TestChain100SetupTmp();
 
     CBlock CreateAndProcessBlock(const std::vector<CMutableTransaction>& txns,

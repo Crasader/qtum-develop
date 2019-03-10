@@ -18,7 +18,7 @@
 
 // InitDatabaseState initializes the chain with the best state being the
 // genesis block.
-bool InitDatabaseState(Consensus::Params& params, TicketNode& node){
+bool InitDatabaseState(const Consensus::Params& params, TicketNode& node){
 	// Write the new block undo and new tickets data to the
 	// database for the genesis block.
 	node.genesisNode(params);
@@ -55,7 +55,7 @@ bool InitDatabaseState(Consensus::Params& params, TicketNode& node){
 // checks to ensure that the database has not failed the upgrade process and
 // reports the current version.  Upgrades are also handled by this function,
 // when they become applicable.
-bool LoadBestNode(uint32_t height, uint256& blockhash, CBlockHeader& header, Consensus::Params params, TicketNode& node){
+bool LoadBestNode(uint32_t height, uint256& blockhash, CBlockHeader& header, const Consensus::Params params, TicketNode& node){
 	DatabaseInfo dbInfo;
 	if(pdbinfoview->readDatabaseInfo(dbInfo) == false) return error("%s: initial invoke readDatabaseInfo function failed", __func__);
 

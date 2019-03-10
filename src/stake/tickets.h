@@ -40,7 +40,7 @@ class TicketNode {
 
 public:
 	TicketNode() { SetNull(); }
-	explicit TicketNode(Consensus::Params& params): params(params) { SetNull(); }
+	explicit TicketNode(const Consensus::Params& params): params(params) { SetNull(); }
 	explicit TicketNode(TicketNode& node): height(node.height), liveTickets(node.liveTickets), missedTickets(node.missedTickets), revokedTickets(node.revokedTickets), params(node.params) {}
 	explicit TicketNode(const TicketNode& node): height(node.height), liveTickets(node.liveTickets), missedTickets(node.missedTickets), revokedTickets(node.revokedTickets), params(node.params) {}
 
@@ -174,7 +174,7 @@ public:
 
 	// genesisNode returns a pointer to the initialized ticket database for the
 	// genesis block.
-	bool genesisNode(Consensus::Params& paramsIn){
+	bool genesisNode(const Consensus::Params& paramsIn){
 		height = 0;
 		params = paramsIn;
 		return true;
@@ -182,8 +182,8 @@ public:
 
 	bool ForEachByHeight(uint32_t heightLessThan);
 
-	friend bool InitDatabaseState(Consensus::Params& params, TicketNode& node);
-	friend bool LoadBestNode(uint32_t height, uint256& blockhash, CBlockHeader& header, Consensus::Params params, TicketNode& node);
+	friend bool InitDatabaseState(const Consensus::Params& params, TicketNode& node);
+	friend bool LoadBestNode(uint32_t height, uint256& blockhash, CBlockHeader& header, const Consensus::Params params, TicketNode& node);
 	friend bool connectNode(TicketNode& node, uint256 lotteryIV, TicketHashes& ticketsVoted, TicketHashes& revokedTickets, TicketHashes& newTickets, TicketNode& nodeOut);
 	friend bool disconnectNode(TicketNode& node, uint256 parentLotteryIV, std::vector<UndoTicketData>& parentUtds, TicketHashes& parentTickets, TicketNode& nodeOut);
 	friend bool WriteConnectedBestNode(TicketNode& node, const uint256& hash);
@@ -221,8 +221,8 @@ private:
 	Consensus::Params params;
 };
 
-bool InitDatabaseState(Consensus::Params& params, TicketNode& node);
-bool LoadBestNode(uint32_t height, uint256& blockhash, CBlockHeader& header, Consensus::Params params, TicketNode& node);
+bool InitDatabaseState(const Consensus::Params& params, TicketNode& node);
+bool LoadBestNode(uint32_t height, uint256& blockhash, CBlockHeader& header, const Consensus::Params params, TicketNode& node);
 bool safeGet(Immutable& imu, uint256& hash, uint32_t* height, uint8_t* flag);
 bool safePut(Immutable& imu, uint256& hash, uint32_t& height, uint8_t& flag);
 bool safeDelete(Immutable& imu, uint256& hash);

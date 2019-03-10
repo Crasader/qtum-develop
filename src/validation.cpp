@@ -2230,8 +2230,10 @@ int64_t CalculateAddedSubsidy(CBlock& block, CBlock& parent, CCoinsViewCache& vi
 	if(headerApprovesParent(block.GetBlockHeader())){
     	CMutableTransaction txOut;
     	CDiskTxPos txindex;
-    	ReadFromDisk(txOut, txindex, *pblocktree, parent.vtx[0]->vin[0].prevout);
-    	subsidy += txOut.vout[parent.vtx[0]->vin[0].prevout.n].nValue;
+    	if(!parent.IsNull()){
+        	ReadFromDisk(txOut, txindex, *pblocktree, parent.vtx[0]->vin[0].prevout);
+        	subsidy += txOut.vout[parent.vtx[0]->vin[0].prevout.n].nValue;
+    	}
 	}
 
 	for(auto stx : block.svtx){
@@ -3413,7 +3415,7 @@ bool CChainState::ConnectBlockMock(const CBlock& block, const CBlock& parent, CV
     }
 
     // Insert the block into the stake database.
-    if(!stakeNode->IsNull() && WriteConnectedBestNode(*stakeNode, *node->phashBlock)){
+    if(!stakeNode->IsNull() && !WriteConnectedBestNode(*stakeNode, *node->phashBlock)){
     	return error("%s: WriteConnectedBestNode update current ticketnode state failed", __func__);
     }
     ////////////////////////////////////////////////////////////////
@@ -4211,10 +4213,13 @@ bool CChainState::ConnectTip(CValidationState& state, const CChainParams& chainp
         dev::h256 oldHashUTXORoot(globalState->rootHashUTXO()); // qtum
 
         bool rv = false;
-        if(TestStxDebug && (pindexNew->pprev != chainActive.Genesis()) && (pindexNew != chainActive.Genesis())){
+        if(TestStxDebug){
             std::shared_ptr<CBlock> pblockPre = std::make_shared<CBlock>();
-            if (!ReadBlockFromDisk(*pblockPre, pindexNew->pprev, chainparams.GetConsensus()))
-                return AbortNode(state, "Failed to read block");
+            if(pindexNew->nHeight != 0){
+				if (!ReadBlockFromDisk(*pblockPre, pindexNew->pprev, chainparams.GetConsensus())){
+					return AbortNode(state, "Failed to read block");
+				}
+            }
             const CBlock pprevBlock = *pblockPre;
         	rv = ConnectBlockMock(blockConnecting, pprevBlock, state, pindexNew, view, chainparams);
         } else {
@@ -6525,6 +6530,7 @@ bool CChainState::LoadGenesisBlock(const CChainParams& chainparams)
             return error("%s: writing genesis block to disk failed", __func__);
         CBlockIndex *pindex = AddToBlockIndex(block);
         pindex->hashProof = chainparams.GetConsensus().hashGenesisBlock;
+        InitDatabaseState(chainparams.GetConsensus(), *pindex->stakeNode);	// update pindex->stakenode of genesis node information
         CValidationState state;
         if (!ReceivedBlockTransactions(block, state, pindex, blockPos, chainparams.GetConsensus()))
             return error("%s: genesis block not accepted", __func__);
