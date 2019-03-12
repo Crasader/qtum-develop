@@ -343,6 +343,10 @@ CBlock TestChain100SetupTmp::CreateAndProcessBlock(const std::vector<CMutableTra
         IncrementExtraNonce(&block, chainActive.Tip(), extraNonce);
     }
 
+    if(TestStxDebug && chainActive.Height() != 0){
+    	updateBlockHeader(block, chainparams);
+    }
+
     while (!CheckProofOfWork(block.GetHash(), block.nBits, chainparams.GetConsensus())) ++block.nNonce;
 
     std::shared_ptr<const CBlock> shared_pblock = std::make_shared<const CBlock>(block);

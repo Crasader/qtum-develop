@@ -206,6 +206,10 @@ public:
 		memset(nextfinalstate, 0, sizeof(nextfinalstate));
 	}
 
+	bool IsNull(){
+		return hash->IsNull();
+	}
+
 };
 
 enum BlockStatus: uint32_t {

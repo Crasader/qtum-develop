@@ -3771,11 +3771,19 @@ bool CWallet::CreateTicketPurchaseTx(CWalletTx& wtxNew, CAmount& ticketPrice, CA
         auto it = mapWallet.find(senderInput.hash);
         if(it != mapWallet.end()){
         	const CScript senderScript = it->second.tx->vout[senderInput.n].scriptPubKey;
-        	if(!GetPubkHashfromScript(senderScript, addrTrue)){
+        	if(!GetPubkHashfromScript(senderScript, addrTrue)){								// TODO, only allow public key hash & public key
         		return error("%s: GetPubkHashfromP2PKH parse pubkhash failed", __func__);
         	}
         } else {
-        	return error("%s: utxo(txid: %s, n: %d) not in this wallet", __func__, senderInput.hash.GetHex(), senderInput.n);
+	        auto sit = mapWalletStx.find(senderInput.hash);
+	        if(sit != mapWalletStx.end()){
+				const CScript senderScript = sit->second.tx->vout[senderInput.n].scriptPubKey;
+				if(!GetPubkHashfromScript(senderScript, addrTrue)){
+					return error("%s: GetPubkHashfromP2PKH parse pubkhash failed", __func__);
+				}
+	        } else {
+	        	return error("%s: GetPubkHashfromP2PKH parse pubkhash failed", __func__);
+	        }
         }
     }
 

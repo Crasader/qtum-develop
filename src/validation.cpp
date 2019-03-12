@@ -229,6 +229,11 @@ public:
     	stateSnapshot = std::make_shared<BestState>(state);
     	return true;
     }
+
+    std::shared_ptr<BestState> BestSnapshot(){
+    	std::shared_ptr<BestState> snapshotOut = stateSnapshot;
+    	return snapshotOut;
+    }
     ////////////////////////////////////////////////////////////////
 
 private:
@@ -1959,13 +1964,19 @@ static bool WriteTxIndexDataForBlock(const CBlock& block, CValidationState& stat
 {
     if (!fTxIndex) return true;
 
-    CDiskTxPos pos(pindex->GetBlockPos(), GetSizeOfCompactSize(block.vtx.size()));
+    CDiskTxPos pos(pindex->GetBlockPos(), GetSizeOfCompactSize(block.vtx.size() + block.svtx.size()));
     std::vector<std::pair<uint256, CDiskTxPos> > vPos;
     vPos.reserve(block.vtx.size());
     for (const CTransactionRef& tx : block.vtx)
     {
         vPos.push_back(std::make_pair(tx->GetHash(), pos));
         pos.nTxOffset += ::GetSerializeSize(*tx, SER_DISK, CLIENT_VERSION);
+    }
+
+    for (const CTransactionRef& stx : block.svtx)
+    {
+        vPos.push_back(std::make_pair(stx->GetHash(), pos));
+        pos.nTxOffset += ::GetSerializeSize(*stx, SER_DISK, CLIENT_VERSION);
     }
 
     if (!pblocktree->WriteTxIndex(vPos)) {
@@ -2239,7 +2250,7 @@ int64_t CalculateAddedSubsidy(CBlock& block, CBlock& parent, CCoinsViewCache& vi
 	for(auto stx : block.svtx){
 		if(IsSSGen(*stx, state)){
 			Coin coin;
-			view.GetCoin(block.vtx[0]->vin[0].prevout, coin);
+			view.GetCoin(stx->vin[0].prevout, coin);
 			subsidy += coin.out.nValue;
 		}
 	}
@@ -2272,6 +2283,43 @@ bool newBestState(CBlockIndex* node, uint64_t blockSize, uint64_t numTxns, uint6
 	state.nextwinningtickets = nextWinners;
 	state.missedtickets = missed;
 	memcpy(state.nextfinalstate, nextFinalState, 6);
+	return true;
+}
+
+bool updateBlockHeader(CBlock& block, const CChainParams& chainparams){
+	CValidationStakeState state;
+	std::shared_ptr<BestState> bes = g_chainstate.BestSnapshot();
+
+	uint8_t orifreshstake = 0;
+	uint16_t voters = 0;
+	uint8_t revocations = 0;
+	for (auto stx : block.svtx){
+		if(IsSStx(*stx, state) && stx->vout[0].nValue >= bes->nextStakeDiff){
+			orifreshstake++;
+		} else if (IsSSGen(*stx, state)){
+			voters++;
+		} else if (IsSSRtx(*stx, state)){
+			revocations++;
+		}
+	}
+	if(orifreshstake >= chainparams.GetConsensus().MaxFreshStakePerBlock){
+		return error("%s: the num of block's sstx is above the MaxFreshStakePerBlock.", __func__);
+	}
+	block.FreshStake = orifreshstake;
+
+	if(voters >= UINT16_MAX){
+		return error("%s: the num of block's ssgen is above the UINT16_MAX.", __func__);
+	}
+	block.Voters = voters;
+
+	if(revocations >= UINT8_MAX){
+		return error("%s: the num of block's ssrtx is above the UINT8_MAX.", __func__);
+	}
+	block.Revocations = revocations;
+
+	block.sBits = bes->nextStakeDiff;
+	block.PoolSize = bes->nextpoolsize;
+
 	return true;
 }
 ////////////////////////////////////////////////////////////////

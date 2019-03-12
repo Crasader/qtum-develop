@@ -641,6 +641,8 @@ bool newBestState(CBlockIndex* node, uint64_t blockSize, uint64_t numTxns, uint6
 		int64_t nextStakeDiff, std::vector<uint256> nextWinners, std::vector<uint256> missed,
 		unsigned char* nextFinalState, BestState& state);
 
+bool updateBlockHeader(CBlock& block, const CChainParams& chainparams);
+
 ////////////////////////////////////////////////////////////////
 
 
