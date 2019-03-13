@@ -2302,7 +2302,7 @@ bool updateBlockHeader(CBlock& block, const CChainParams& chainparams){
 			revocations++;
 		}
 	}
-	if(orifreshstake >= chainparams.GetConsensus().MaxFreshStakePerBlock){
+	if(orifreshstake > chainparams.GetConsensus().MaxFreshStakePerBlock){
 		return error("%s: the num of block's sstx is above the MaxFreshStakePerBlock.", __func__);
 	}
 	block.FreshStake = orifreshstake;
