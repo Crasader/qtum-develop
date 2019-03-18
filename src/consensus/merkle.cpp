@@ -165,6 +165,15 @@ uint256 BlockMerkleRoot(const CBlock& block, bool* mutated)
     return ComputeMerkleRoot(leaves, mutated);
 }
 
+uint256 BlockStakeMerkle(const CBlock& block, bool* mutated){
+    std::vector<uint256> leaves;
+    leaves.resize(block.svtx.size());
+    for (size_t s = 0; s < block.svtx.size(); s++) {
+        leaves[s] = block.svtx[s]->GetHash();
+    }
+    return ComputeMerkleRoot(leaves, mutated);
+}
+
 uint256 BlockWitnessMerkleRoot(const CBlock& block, bool* mutated, bool* pfProofOfStake)
 {
     bool fProofOfStake = pfProofOfStake ? *pfProofOfStake : block.IsProofOfStake();

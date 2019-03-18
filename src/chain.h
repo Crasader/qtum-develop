@@ -210,6 +210,23 @@ public:
 		return hash->IsNull();
 	}
 
+	void Update (BestState bs){
+		hash = bs.hash;
+		prehash = bs.prehash;
+		height = bs.height;
+		nbits = bs.nbits;
+		nextpoolsize = bs.nextpoolsize;
+		nextStakeDiff = bs.nextStakeDiff;
+		blocksize = bs.blocksize;
+		numtxns = bs.numtxns;
+		totaltxns = bs.totaltxns;
+		medianTime = bs.medianTime;
+		totalsubsidy = bs.totalsubsidy;
+		nextwinningtickets = bs.nextwinningtickets;
+		missedtickets = bs.missedtickets;
+		memcpy(nextfinalstate, bs.nextfinalstate, sizeof(nextfinalstate));
+	}
+
 };
 
 enum BlockStatus: uint32_t {
@@ -322,6 +339,7 @@ public:
     unsigned int nTimeMax;
 
     //////////////////////////////////////////////////////////////// decred
+    uint256 hashStakeMerkle;
     uint32_t poolSize;
     uint8_t freshStake;
     int64_t sBits;
@@ -370,6 +388,7 @@ public:
         hashProof = uint256();
         prevoutStake.SetNull();
         nMoneySupply   	= 0;
+        hashStakeMerkle	= uint256();	// decred
         poolSize	   	= 0;			// decred
         freshStake		= 0;			// decred
         newTickets.clear();				// decred

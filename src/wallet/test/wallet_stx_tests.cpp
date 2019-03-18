@@ -149,8 +149,7 @@ public:
     {
     	const CChainParams& chainparams = Params();
     	CBlockIndex* pindexPrev = chainActive.Tip();
-    	CAmount ticketPrice = 0;
-        estimateNextStakeDifficultyV2(chainparams.GetConsensus(), pindexPrev, ticketPrice);
+    	CAmount ticketPrice = stateSnapshot->nextStakeDiff;
 
         CWalletTx wtx;
         std::vector<CWalletTx> swtxVch;
@@ -263,13 +262,13 @@ BOOST_AUTO_TEST_CASE(wallet_stx_vote_block)	// test many txs use one utxo
 
     std::string coinbaseAddress = coinbaseKey.GetPubKey().GetID().ToString();
 
-    for(uint16_t bnum = 0; bnum < Params().GetConsensus().TicketMaturity * 2; bnum++){
+    for(uint16_t bnum = 0; bnum < Params().GetConsensus().TicketMaturity * 3; bnum++){
     	AddTxStx();
     }
     auto list2 = wallet->ListCoins();
     BOOST_CHECK_EQUAL(list2.size(), 1);
     BOOST_CHECK_EQUAL(boost::get<CKeyID>(list2.begin()->first).ToString(), coinbaseAddress);
-    BOOST_CHECK_EQUAL(list2.begin()->second.size(), 9);
+    BOOST_CHECK_EQUAL(list2.begin()->second.size(), 13);
 
 
 

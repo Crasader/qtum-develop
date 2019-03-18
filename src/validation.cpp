@@ -226,13 +226,12 @@ public:
     //////////////////////////////////////////////////////////////// decred
     bool updateStateSnapshot(BestState& state){
     	LOCK(cs_stateLock);
-    	stateSnapshot = std::make_shared<BestState>(state);
+    	stateSnapshot->Update(state);
     	return true;
     }
 
     std::shared_ptr<BestState> BestSnapshot(){
-    	std::shared_ptr<BestState> snapshotOut = stateSnapshot;
-    	return snapshotOut;
+    	return stateSnapshot;
     }
     ////////////////////////////////////////////////////////////////
 
@@ -260,6 +259,7 @@ CCriticalSection cs_main;
 BlockMap& mapBlockIndex = g_chainstate.mapBlockIndex;
 std::set<std::pair<COutPoint, unsigned int>>& setStakeSeen = g_chainstate.setStakeSeen;
 CChain& chainActive = g_chainstate.chainActive;
+const std::shared_ptr<BestState> stateSnapshot = g_chainstate.BestSnapshot();
 CBlockIndex *pindexBestHeader = nullptr;
 CWaitableCriticalSection csBestBlock;
 CConditionVariable cvBlockChange;
@@ -5048,6 +5048,11 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
         uint256 hashMerkleRoot2 = BlockMerkleRoot(block, &mutated);
         if (block.hashMerkleRoot != hashMerkleRoot2)
             return state.DoS(100, false, REJECT_INVALID, "bad-txnmrklroot", true, "hashMerkleRoot mismatch");
+        if(TestStxDebug){
+            uint256 hashStakeMerkle2 = BlockStakeMerkle(block, &mutated);
+            if (block.hashStakeMerkle != hashStakeMerkle2)
+                return state.DoS(100, false, REJECT_INVALID, "bad-txnmrklroot-stake", true, "hashStakeMerkle mismatch");
+        }
 
         // Check for merkle tree malleability (CVE-2012-2459): repeating sequences
         // of transactions in a block without affecting the merkle root of a block,
@@ -5385,10 +5390,6 @@ bool CChainState::UpdateHashProofMock(const CBlock& block, CValidationState& sta
     // Check proof-of-work or proof-of-stake
     if (block.nBits != GetNextWorkRequired(node->pprev, &block, consensusParams,block.IsProofOfStake())) // TODO modify, ypf
         return state.DoS(100, error("UpdateHashProof() : incorrect %s", block.IsProofOfWork() ? "proof-of-work" : "proof-of-stake"));
-
-    int64_t sBits;
-    estimateNextStakeDifficultyV2(consensusParams, node, sBits);
-    node->sBits = sBits;
 
     uint256 hashProof;
     // Verify hash target and signature of coinstake tx, TODO ssgen check, ypf
@@ -6579,6 +6580,38 @@ bool CChainState::LoadGenesisBlock(const CChainParams& chainparams)
         CBlockIndex *pindex = AddToBlockIndex(block);
         pindex->hashProof = chainparams.GetConsensus().hashGenesisBlock;
         InitDatabaseState(chainparams.GetConsensus(), *pindex->stakeNode);	// update pindex->stakenode of genesis node information
+
+        if(TestStxDebug){
+        	// Generate a new best state snapshot that will be used to update the
+        	// database and later memory if all database updates are successful.
+        	uint64_t curTotalTxns = stateSnapshot->totaltxns;
+        	int64_t curTotalSubsidy = stateSnapshot->totalsubsidy;
+
+        	// Calculate the exact subsidy produced by adding the block.
+        	int64_t nextStakeDiff;
+        	estimateNextStakeDifficultyV2(chainparams.GetConsensus(), pindex, nextStakeDiff);
+
+        	// Calculate the number of transactions that would be added by adding
+        	// this block.
+        	const CBlock parent = CBlock();
+        	uint64_t numTxns = countNumberOfTransactions(const_cast<CBlock&>(block), const_cast<CBlock&>(parent));
+
+        	// Calculate the exact subsidy produced by adding the block.
+        	CCoinsViewCache view(pcoinsTip.get());
+        	int64_t subsidy = CalculateAddedSubsidy(const_cast<CBlock&>(block), const_cast<CBlock&>(parent), view);
+
+        	uint64_t blockSize = ::GetSerializeSize(block, SER_NETWORK, PROTOCOL_VERSION | SERIALIZE_TRANSACTION_NO_WITNESS);
+        	BestState state;
+        	std::vector<uint256> missedHash;
+        	pindex->stakeNode->MissedTickets(missedHash);
+        	newBestState(pindex, blockSize, numTxns, curTotalTxns+numTxns,
+        			pindex->GetMedianTimePast(), curTotalSubsidy+subsidy,
+        			uint32_t(pindex->stakeNode->PoolSize()), nextStakeDiff,
+					pindex->stakeNode->Winners(), missedHash,
+					pindex->stakeNode->FinalState(), state);
+        	updateStateSnapshot(state);
+        }
+
         CValidationState state;
         if (!ReceivedBlockTransactions(block, state, pindex, blockPos, chainparams.GetConsensus()))
             return error("%s: genesis block not accepted", __func__);

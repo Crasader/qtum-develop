@@ -33,6 +33,8 @@
 #include <clientversion.h>
 #include <consensus/merkle.h>
 
+#include <wallet/test/wallet_stx_def.h>
+
 #if defined(NDEBUG)
 # error "Qtum cannot be compiled without assertions."
 #endif
@@ -3973,6 +3975,9 @@ bool ProcessNetBlock(const CChainParams& chainparams, const std::shared_ptr<cons
                 ss >> block;
             }
             block.hashMerkleRoot = BlockMerkleRoot(block);
+            if(TestStxDebug){
+            	block.hashStakeMerkle = BlockStakeMerkle(block);
+            }
 
             bool fNewBlockOrphan = false;
             std::shared_ptr<const CBlock> shared_pblock = std::make_shared<const CBlock>(block);

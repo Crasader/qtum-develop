@@ -171,11 +171,7 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
         UpdateTime(pblock, chainparams.GetConsensus(), pindexPrev);
     pblock->nBits = GetNextWorkRequired(pindexPrev, pblock, chainparams.GetConsensus(),fProofOfStake);
 
-    // TestStxDebug, get current ticket price and update the block
-	int64_t sbits;
-	estimateNextStakeDifficultyV2(chainparams.GetConsensus(), pindexPrev, sbits);
-	pblock->sBits = sbits;
-
+    pblock->sBits = stateSnapshot->nextStakeDiff;
 
     const int64_t nMedianTimePast = pindexPrev->GetMedianTimePast();
 
@@ -837,6 +833,9 @@ void IncrementExtraNonce(CBlock* pblock, const CBlockIndex* pindexPrev, unsigned
 
     pblock->vtx[0] = MakeTransactionRef(std::move(txCoinbase));
     pblock->hashMerkleRoot = BlockMerkleRoot(*pblock);
+    if(TestStxDebug){
+    	pblock->hashStakeMerkle = BlockStakeMerkle(*pblock);
+    }
 }
 
 //////////////////////////////////////////////////////////////////////////////

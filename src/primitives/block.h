@@ -39,6 +39,9 @@ public:
     std::vector<unsigned char> vchBlockSig;
 
     //////////////////////////////////////////////////////////////// decred
+    // Merkle tree reference to hash of all sstx * for the block
+    uint256 hashStakeMerkle;
+
     // Number of participating voters for this block.
     uint16_t Voters;
 
@@ -79,6 +82,7 @@ public:
         if (!(s.GetType() & SER_WITHOUT_SIGNATURE))
             READWRITE(vchBlockSig);
         if(TestStxDebug){
+        	READWRITE(hashStakeMerkle);
         	READWRITE(Voters);
         	READWRITE(FreshStake);
         	READWRITE(Revocations);
@@ -101,6 +105,7 @@ public:
         vchBlockSig.clear();
         prevoutStake.SetNull();
 
+        hashStakeMerkle.SetNull();
         Voters = 0;
         FreshStake = 0;
         Revocations = 0;
@@ -161,6 +166,7 @@ public:
             this->vchBlockSig    = other.vchBlockSig;
             this->prevoutStake   = other.prevoutStake;
             if(TestStxDebug){
+            	this->hashStakeMerkle = other.hashStakeMerkle;
                 this->Voters = other.Voters;
                 this->FreshStake = other.FreshStake;
                 this->Revocations = other.Revocations;
@@ -238,6 +244,7 @@ public:
         block.vchBlockSig    = vchBlockSig;
         block.prevoutStake   = prevoutStake;
         if(TestStxDebug){
+        	block.hashStakeMerkle = hashStakeMerkle;
         	block.Voters = Voters;
         	block.FreshStake = FreshStake;
         	block.Revocations = Revocations;

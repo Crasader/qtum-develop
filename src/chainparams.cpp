@@ -39,6 +39,9 @@ static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesi
     genesis.vtx.push_back(MakeTransactionRef(std::move(txNew)));
     genesis.hashPrevBlock.SetNull();
     genesis.hashMerkleRoot = BlockMerkleRoot(genesis);
+    if(TestStxDebug){
+    	genesis.hashStakeMerkle = BlockStakeMerkle(genesis);
+    }
     genesis.hashStateRoot = uint256(h256Touint(dev::h256("e965ffd002cd6ad0e2dc402b8044de833e06b23127ea8c3d80aec91410771495"))); // qtum
     genesis.hashUTXORoot = uint256(h256Touint(dev::sha3(dev::rlp("")))); // qtum
     return genesis;
@@ -185,7 +188,7 @@ public:
         consensus.nFixUTXOCacheHFHeight=100000;
 
         //////////////////////////////////////////////////////////////// decred
-        consensus.MaxStakeDiff = 0xFFFFFFFFFFFFFFFF;
+        consensus.MaxStakeDiff = INT64_MAX;
 		consensus.MinimumStakeDiff = 2 * COIN;			// 2 Coin
 
 		consensus.TicketPoolSize = 8192;
@@ -310,7 +313,7 @@ public:
         consensus.nFixUTXOCacheHFHeight=84500;
 
         //////////////////////////////////////////////////////////////// decred
-        consensus.MaxStakeDiff = 0xFFFFFFFFFFFFFFFF;
+        consensus.MaxStakeDiff = INT64_MAX;
 		consensus.MinimumStakeDiff = 20000000;					// 0.2 COIN
 
 		consensus.TicketPoolSize = 1024;
@@ -381,7 +384,12 @@ public:
         nDefaultPort = 23888;
         nPruneAfterHeight = 1000;
 
-        genesis = CreateGenesisBlock(1504695029, 17, 0x207fffff, 1, 50 * COIN);
+        if(TestStxDebug){
+        	genesis = CreateGenesisBlock(1504695029, 22, 0x207fffff, 1, 50 * COIN);
+        } else {
+        	genesis = CreateGenesisBlock(1504695029, 17, 0x207fffff, 1, 50 * COIN);
+        }
+
         consensus.hashGenesisBlock = genesis.GetHash();
 //        assert(consensus.hashGenesisBlock == uint256S("0x665ed5b402ac0b44efc37d8926332994363e8a7278b7ee9a58fb972efadae943"));
 //        assert(genesis.hashMerkleRoot == uint256S("0xed34050eb5909ee535fcb07af292ea55f3d2f291187617b44d3282231405b96d"));
@@ -419,7 +427,7 @@ public:
         bech32_hrp = "qcrt";
 
         //////////////////////////////////////////////////////////////// decred
-        consensus.MaxStakeDiff = 0xFFFFFFFFFFFFFFFF;
+        consensus.MaxStakeDiff = INT64_MAX;
 		consensus.MinimumStakeDiff = 20000;
 
 		consensus.TicketPoolSize = 64;
@@ -465,7 +473,7 @@ public:
         consensus.nMinerConfirmationWindow = 744; // Faster than normal for regtest (744 instead of 2016)
 
         //////////////////////////////////////////////////////////////// decred
-        consensus.MaxStakeDiff = 0xFFFFFFFFFFFFFFFF;
+        consensus.MaxStakeDiff = INT64_MAX;
 		consensus.MinimumStakeDiff = 2000000;
 
 		consensus.TicketPoolSize = 64 / 4;
@@ -475,7 +483,8 @@ public:
 		consensus.CoinbaseMaturity = 16 / 4;
 		consensus.StakeDiffWindowSize = 8 / 4;
 		consensus.MaxFreshStakePerBlock = 20;					// 4*TicketsPerBlock
-		consensus.StakeValidationHeight = (16 + (64 * 2)) / 4;		// CoinbaseMaturity + TicketPoolSize*2
+//		consensus.StakeValidationHeight = (16 + (64 * 2)) / 4;		// CoinbaseMaturity + TicketPoolSize*2
+		consensus.StakeValidationHeight = 18;
 		consensus.StakeEnabledHeight = (16 + 16) /4;					// CoinbaseMaturity + TicketMaturity
 		consensus.StakeBaseSigScript = CScript() << 0xDE << 0xAD << 0xBE << 0xEF;
 		consensus.TicketExpiry = 384 / 4;							// 6*TicketPoolSize

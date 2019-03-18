@@ -126,7 +126,7 @@ bool findTicketIdxs(int32_t size, uint16_t n, Hash256PRNG& prng, std::vector<int
 		return error("%s: list size too small: %d < %d(target)", __func__, size, n);
 	}
 
-	int64_t max = 0xFFFFFFFF;
+	int64_t max = INT32_MAX;
 	if((int64_t)size > max){
 		return error("%s: list size too big: %d > %d(limit)", __func__, size, max);
 	}

@@ -23,6 +23,12 @@ uint256 ComputeMerkleRootFromBranch(const uint256& leaf, const std::vector<uint2
 uint256 BlockMerkleRoot(const CBlock& block, bool* mutated = nullptr);
 
 /*
+ * Compute the Merkle root of the sstx transactions in a block.
+ * *mutated is set to true if a duplicated subtree was found.
+ */
+uint256 BlockStakeMerkle(const CBlock& block, bool* mutated = nullptr);
+
+/*
  * Compute the Merkle root of the witness transactions in a block.
  * *mutated is set to true if a duplicated subtree was found.
  */
