@@ -498,18 +498,16 @@ CScript voteBlockScript(CBlockIndex* parentBlock){
 }
 
 CScript VoteCommitmentScript(const uint256* phash, int32_t nheight){
-	std::vector<unsigned char> vch;
-	vch.resize(36);
-	vch.assign(phash->begin(), phash->end());
-	WriteLE32(vch.data() + 32, (uint32_t)nheight);
-	return CScript() << OP_RETURN << vch;
+	unsigned char chr[36];
+	memcpy(chr, phash->begin(), phash->size());
+	WriteLE32(chr + 32, (uint32_t)nheight);
+	return CScript() << OP_RETURN << std::vector<unsigned char>(chr, chr + 36);
 }
 
 CScript voteBitsScript(uint16_t bits){
-	std::vector<unsigned char> vch;
-	vch.resize(2);
-	WriteLE16(vch.data(), bits);
-	return CScript() << OP_RETURN << vch;
+	unsigned char chr[2];
+	WriteLE16(chr, bits);
+	return CScript() << OP_RETURN << std::vector<unsigned char>(chr, chr + 2);
 }
 
 

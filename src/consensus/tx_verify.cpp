@@ -212,7 +212,7 @@ bool CheckTransaction(const CTransaction& tx, CValidationState &state, bool fChe
     else
     {
         for (const auto& txin : tx.vin)
-            if (txin.prevout.IsNull())
+            if (txin.prevout.IsNull() && txin.prevout.n != UINT32_MAX)
                 return state.DoS(10, false, REJECT_INVALID, "bad-txns-prevout-null");
     }
 

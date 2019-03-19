@@ -3298,10 +3298,9 @@ bool CChainState::ConnectBlockMock(const CBlock& block, const CBlock& parent, CV
     // re-enforce that rule here (at least until we make it impossible for
     // GetAdjustedTime() to go backward).
 
-    /* TODO modify the check principle, ypf
+    // TODO modify the check principle, ypf
     if (!CheckBlock(block, state, chainparams.GetConsensus(), !fJustCheck, !fJustCheck))
         return error("%s: Consensus::CheckBlock: %s", __func__, FormatStateMessage(state));
-     */
 
     // verify that the view's current state corresponds to the previous block
     uint256 hashPrevBlock = node->pprev == nullptr ? uint256() : node->pprev->GetBlockHash();

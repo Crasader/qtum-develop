@@ -126,7 +126,7 @@ bool CheckSSgen(const CTransaction& tx, CValidationStakeState& state) {
 	}
 	whichType = TX_NONSTANDARD;
 	if(zeroethOutputScript.size() != SSGenBlockReferenceOutSize){
-		return state.Invalid(false, STX_REJECT_INVALID, "ssgen-output", "First SSGen output should have been 43 bytes long, but was not");
+		return state.Invalid(false, STX_REJECT_INVALID, "ssgen-output", "First SSGen output should have been 38 bytes long, but was not");
 	}
 
 	if (!zeroethOutputScript.HasOpReturnB()) {

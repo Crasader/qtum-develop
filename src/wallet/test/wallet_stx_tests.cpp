@@ -108,7 +108,6 @@ public:
     void AddTx()
     {
 
-    	const CChainParams& chainparams = Params();
 		CWalletTx wtx;
 		std::vector<CRecipient> vecSend;
 		CReserveKey reservekey(wallet.get());
@@ -148,10 +147,8 @@ public:
     void AddTxStx()
     {
     	const CChainParams& chainparams = Params();
-    	CBlockIndex* pindexPrev = chainActive.Tip();
     	CAmount ticketPrice = stateSnapshot->nextStakeDiff;
 
-        CWalletTx wtx;
         std::vector<CWalletTx> swtxVch;
         uint32_t stxTotalNum = chainparams.GetConsensus().MaxFreshStakePerBlock;
         swtxVch.resize(stxTotalNum);
@@ -173,6 +170,61 @@ public:
 			swtxVch[num] = swtx;
 			state.clear();
         }
+
+        std::vector<CMutableTransaction> sblocktxVch;
+        {
+            LOCK(wallet->cs_wallet);
+            CMutableTransaction sblocktx;
+            for(uint16_t txnum = 0; txnum < swtxVch.size(); txnum++){
+            	sblocktx = CMutableTransaction(*wallet->mapWalletStx.at(swtxVch[txnum].GetHash()).tx);
+            	sblocktxVch.push_back(sblocktx);
+            }
+        }
+        CreateAndProcessBlock({}, sblocktxVch, GetScriptForRawPubKey(coinbaseKey.GetPubKey()));
+
+        {
+            LOCK(wallet->cs_wallet);
+
+            for(uint16_t txnum = 0; txnum < swtxVch.size(); txnum++){
+                auto sit = wallet->mapWalletStx.find(swtxVch[txnum].GetHash());
+                BOOST_CHECK(sit != wallet->mapWalletStx.end());
+                sit->second.SetMerkleBranch(chainActive.Tip(), 1 + txnum);
+            }
+        }
+    }
+
+    void addSSGen(){
+    	const CChainParams& chainparams = Params();
+    	CBlockIndex* pindexPrev = chainActive.Tip();
+
+        CWalletTx wtx;
+        std::vector<CWalletTx> swtxVch;
+        CReserveKey reservekey(wallet.get());
+        std::vector<uint256> winners = pindexPrev->stakeNode->Winners();
+
+        if(chainActive.Height() + 1 >= chainparams.GetConsensus().StakeValidationHeight && !winners.empty()){
+
+        	for(uint256 winHash : winners){
+            	CWalletTx wtxNew;
+            	std::string failedstr;
+            	CValidationStakeState stakestate;
+            	CValidationState state;
+        		auto it = wallet->mapWalletStx.find(winHash);
+        		if(it != wallet->mapWalletStx.end()){
+        			if(DetermineTxType(*it->second.tx, stakestate) == TxTypeSStx && wallet->IsMine(it->second.tx->vout[0]) == ISMINE_SPENDABLE){
+        				BOOST_CHECK(wallet->CreateVoteTx(wtxNew, pindexPrev, *it->second.tx, failedstr, (uint32_t)pindexPrev->nHeight + 1));
+        				BOOST_TEST_MESSAGE(strprintf("%s", failedstr));
+        				BOOST_CHECK(wallet->CommitTransaction(wtxNew, reservekey, nullptr, state));
+        	            BOOST_TEST_MESSAGE(strprintf("%s%s (code %i)",
+        	                    state.GetRejectReason(),
+        	                    state.GetDebugMessage().empty() ? "" : ", "+state.GetDebugMessage(),
+        	                    state.GetRejectCode()));
+        				swtxVch.push_back(wtxNew);
+        			}
+        		}
+        	}
+        }
+
 
         std::vector<CMutableTransaction> sblocktxVch;
         {
@@ -256,9 +308,6 @@ BOOST_AUTO_TEST_CASE(ListCoins)
 
 BOOST_AUTO_TEST_CASE(wallet_stx_vote_block)	// test many txs use one utxo
 {
-	CBlockIndex* prevIdx = chainActive.Tip();
-	CBlockIndex* blockIdx = nullptr;
-	const CChainParams& chainparams = Params();
 
     std::string coinbaseAddress = coinbaseKey.GetPubKey().GetID().ToString();
 
@@ -270,7 +319,7 @@ BOOST_AUTO_TEST_CASE(wallet_stx_vote_block)	// test many txs use one utxo
     BOOST_CHECK_EQUAL(boost::get<CKeyID>(list2.begin()->first).ToString(), coinbaseAddress);
     BOOST_CHECK_EQUAL(list2.begin()->second.size(), 13);
 
-
+    addSSGen();
 
 }
 

@@ -3989,14 +3989,15 @@ bool CWallet::CreateTicketPurchaseTx(CWalletTx& wtxNew, CAmount& ticketPrice, CA
 	return true;
 }
 
-bool CWallet::CreateVoteTx(CWalletTx& wtxNew, CReserveKey& reservekey, CBlockIndex* voteBlock, CTransaction& ticketTx, std::string& strFailReason,
-    						uint32_t ticketBlockHeight, uint32_t ticketBlockIndex, bool sign)
+bool CWallet::CreateVoteTx(CWalletTx& wtxNew, CBlockIndex* voteBlock, const CTransaction& ticketTx, std::string& strFailReason,
+    						uint32_t ticketBlockHeight, bool sign)
 {
 	CMutableTransaction txNew;
 
 	CKeyID addrTrue;
 	const CScript senderScript = ticketTx.vout[0].scriptPubKey;
 	if(!GetPubkHashfromScript(senderScript, addrTrue)){
+		strFailReason = _("GetPubkHashfromP2PKH parse pubkhash failed");
 		return error("%s: GetPubkHashfromP2PKH parse pubkhash failed", __func__);
 	}
 

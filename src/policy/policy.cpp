@@ -14,6 +14,8 @@
 #include <util.h>
 #include <utilstrencodings.h>
 
+#include <stake/staketx.h>
+
 
 CAmount GetDustThreshold(const CTxOut& txout, const CFeeRate& dustRelayFeeIn)
 {
@@ -134,8 +136,11 @@ bool IsStandardTx(const CTransaction& tx, std::string& reason, const bool witnes
         }
     }
 
-    // only one OP_RETURN txout is permitted
-    if (nDataOut > 1) {
+    CValidationStakeState stakestate;
+    TxType txtype = DetermineTxType(tx, stakestate);
+
+    // only one OP_RETURN txout is permitted except SSTX
+    if (nDataOut > 1 && txtype == TxTypeRegular) {
         reason = "multi-op-return";
         return false;
     }
