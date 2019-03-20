@@ -321,6 +321,7 @@ BOOST_AUTO_TEST_CASE(wallet_stx_vote_block)	// test many txs use one utxo
 
     addSSGen();
 
+    auto list = wallet->ListCoins();
 }
 
 BOOST_AUTO_TEST_SUITE_END()

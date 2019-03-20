@@ -939,11 +939,16 @@ void CWallet::AddToSpendsStx(const uint256& wtxid, TxType txtype)
 
     for (const CTxIn& txin : thisTx.tx->vin)
     {
-        auto it = mapWalletStx.find(txin.prevout.hash);
-        if(it != mapWalletStx.end()){
+        auto sit = mapWalletStx.find(txin.prevout.hash);
+        if(sit != mapWalletStx.end()){
         	AddToSpendsStx(txin.prevout, wtxid, txtype);
         } else {
-        	AddToSpends(txin.prevout, wtxid, txtype);
+        	// wipe off ssgen tx.vin[0], because it is just for pass IsSSGen couldn't find in mapWalletStx
+        	// also couldn't insert in mapTxSpends.
+            auto it = mapWallet.find(txin.prevout.hash);
+            if(it != mapWallet.end() && !txin.prevout.hash.IsNull()){
+            	AddToSpends(txin.prevout, wtxid, txtype);
+            }
         }
     }
 }
@@ -1408,7 +1413,7 @@ bool CWallet::AddToWalletIfInvolvingMe(const CTransactionRef& ptx, const CBlockI
     {
         AssertLockHeld(cs_wallet);
 
-        if (pIndex != nullptr) {
+        if (pIndex != nullptr && !tx.IsCoinBase()) {
             for (const CTxIn& txin : tx.vin) {
                 std::pair<TxSpends::const_iterator, TxSpends::const_iterator> range = mapTxSpends.equal_range(txin.prevout);
                 while (range.first != range.second) {
