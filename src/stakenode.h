@@ -27,7 +27,7 @@ bool maybeFetchNewTickets(const Consensus::Params& consensusParams, CBlockIndex*
 // provided block node if needed.
 //
 // This function MUST be called with the chain state lock held (for writes).
-bool maybeFetchTicketInfo(const Consensus::Params& consensusParams, CBlockIndex* node, CValidationStakeState& state);
+bool maybeFetchTicketInfo(const CBlock& Block, const Consensus::Params& consensusParams, CBlockIndex* node, CValidationStakeState& state);
 
 // fetchStakeNode returns the stake node associated with the requested node
 // while handling the logic to create the stake node if needed.  In the majority
@@ -40,7 +40,7 @@ bool maybeFetchTicketInfo(const Consensus::Params& consensusParams, CBlockIndex*
 // not already been pruned.
 //
 // This function MUST be called with the chain state lock held (for writes).
-bool fetchStakeNode(const Consensus::Params& consensusParams, CBlockIndex* node, std::shared_ptr<TicketNode> stakeNode);
+bool fetchStakeNode(const CBlock& Block, const Consensus::Params& consensusParams, CBlockIndex* node, std::shared_ptr<TicketNode> stakeNode);
 
 
 

@@ -483,16 +483,13 @@ bool CheckSSRtx(const CTransaction& tx, CValidationStakeState &state){
 // had all header commitments validated. TODO TEST, ypf
 bool FindSpentTicketsInBlock(const CBlock& block, SpentTicketsInBlock& ticketinfo, CValidationStakeState& state){
 	std::vector<VoteVersionTuple> votes;
-	votes.resize(block.Voters);
 	std::vector<uint256> voters;
-	voters.resize(block.Voters);
 	std::vector<uint256> revocations;
-	revocations.resize(block.Revocations);
 
 	for(auto stx : block.svtx){
 		if(IsSSGen(*stx, state)){
-			voters.push_back(stx->vin[0].prevout.hash);
-			votes.push_back(std::make_pair(SSGenVersion(*stx), SSGenVoteBits(*stx)));
+			voters.push_back(stx->vin[1].prevout.hash);
+			votes.push_back(std::make_pair(SSGenVersion(*stx), SSGenVoteBits(*stx)));	// no version value in the script at now
 			continue;
 		}
 		if(IsSSRtx(*stx, state)){

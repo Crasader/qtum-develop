@@ -3430,7 +3430,7 @@ bool CChainState::ConnectBlockMock(const CBlock& block, const CBlock& parent, CV
 	// should simply give a pointer to data already prepared, but
 	// run this anyway to be safe.
     std::shared_ptr<TicketNode> stakeNode = std::make_shared<TicketNode>();
-    fetchStakeNode(chainparams.GetConsensus(), node, stakeNode);
+    fetchStakeNode(block, chainparams.GetConsensus(), node, stakeNode);
 
     {
     	// Generate a new best state snapshot that will be used to update the

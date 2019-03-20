@@ -55,7 +55,7 @@ bool maybeFetchNewTickets(const Consensus::Params& consensusParams, CBlockIndex*
 	return true;
 }
 
-bool maybeFetchTicketInfo(const Consensus::Params& consensusParams, CBlockIndex* node, CValidationStakeState& state){
+bool maybeFetchTicketInfo(const CBlock& Block, const Consensus::Params& consensusParams, CBlockIndex* node, CValidationStakeState& state){
 	// Load and populate the tickets maturing in this block when they are not
 	// already loaded.
 	if (!maybeFetchNewTickets(consensusParams, node, state)){
@@ -64,10 +64,7 @@ bool maybeFetchTicketInfo(const Consensus::Params& consensusParams, CBlockIndex*
 
 	// Load and populate the vote and revocation information as needed.
 	if(node->ticketsVoted.empty() || node->ticketsRevoked.empty() || node->votes.empty()){
-		CBlock Block;
-		if(!ReadBlockFromDisk(Block, node, consensusParams)){
-			return state.Invalid(false, REJECT_INVALID, "stx-node", strprintf("%s: ReadBlockFromDisk failed", __func__));
-		}
+
 		SpentTicketsInBlock ticketinfo;
 		FindSpentTicketsInBlock(Block, ticketinfo, state);
 		node->populateTicketInfo(ticketinfo);	// TODO node safe, ypf
@@ -76,7 +73,7 @@ bool maybeFetchTicketInfo(const Consensus::Params& consensusParams, CBlockIndex*
 	return true;
 }
 
-bool fetchStakeNode(const Consensus::Params& consensusParams, CBlockIndex* node, std::shared_ptr<TicketNode> stakeNode){
+bool fetchStakeNode(const CBlock& Block, const Consensus::Params& consensusParams, CBlockIndex* node, std::shared_ptr<TicketNode> stakeNode){
 	TicketNode tempNode;
 	CValidationStakeState state;
 
@@ -92,7 +89,7 @@ bool fetchStakeNode(const Consensus::Params& consensusParams, CBlockIndex* node,
 		// already loaded as an optimization.
 		if(!node->pprev->stakeNode->IsNull()){
 			// Populate the prunable ticket information as needed.
-			if(!maybeFetchTicketInfo(consensusParams, node, state)){
+			if(!maybeFetchTicketInfo(Block, consensusParams, node, state)){
 				return error("%s: invoke maybeFetchTicketInfo failed. reason: %s", __func__, state.FormatStateMessage());
 			}
 
@@ -168,7 +165,7 @@ bool fetchStakeNode(const Consensus::Params& consensusParams, CBlockIndex* node,
 			}
 
 			// Populate the prunable ticket information as needed.
-			if(!maybeFetchTicketInfo(consensusParams, idx, state)){
+			if(!maybeFetchTicketInfo(Block, consensusParams, idx, state)){
 				stakeNode->SetNull();
 				return error("%s: maybeFetchTicketInfo failed. reason: %s", __func__, state.FormatStateMessage());
 			}
