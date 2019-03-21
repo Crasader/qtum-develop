@@ -131,8 +131,7 @@ BOOST_AUTO_TEST_CASE(stake_lottery_ticket_sorting){
 	ticketMap.resize(bucketsSize);
 
 	auto func = [](TicketData a, TicketData b){
-		int32_t compare = a.SStxHash.GetHex().compare(b.SStxHash.GetHex());
-		return compare >= 0;
+		return a.SStxHash < b.SStxHash;
 	};
 
 	uint16_t toMake = ticketPoolSize * ticketsPerBlock;

@@ -81,8 +81,8 @@ bool Immutable::Put(uint256& key, uint32_t height, uint8_t flag){
 	//
 	// When the key matches an entry already in the treap, replace the node
 	// with a new one that has the new value set and return.
+	bool Isleft;
 	parentStack parents;
-	int32_t compareResult;
 	for(treapNode* comNode = mroot; comNode != nullptr;){
 //		treapNode nodeCopy(node);
 //		treapNode* oldParent = parents.At(0);
@@ -99,13 +99,13 @@ bool Immutable::Put(uint256& key, uint32_t height, uint8_t flag){
 
 		// Traverse left or right depending on the result of comparing
 		// the keys.
-		compareResult = key.GetHex().compare(comNode->mkey.GetHex());
-		if(compareResult < 0){
+		if(key < comNode->mkey){
 			comNode = comNode->mleft;
+			Isleft = true;
 			continue;
-		}
-		else if(compareResult > 0){
+		} else if (comNode->mkey < key) {
 			comNode = comNode->mright;
+			Isleft = false;
 			continue;
 		}
 		// The key already exists, so update its value.
@@ -128,7 +128,7 @@ bool Immutable::Put(uint256& key, uint32_t height, uint8_t flag){
 
 	// Link the new node into the binary tree in the correct position.
 	treapNode* parent = parents.At(0);
-	if(compareResult < 0){
+	if(Isleft){
 		parent->mleft = node;
 	} else {
 		parent->mright = node;
@@ -197,12 +197,10 @@ bool Immutable::Delete(const uint256& key){
 
 		// Traverse left or right depending on the result of the
 		// comparison.
-		int32_t compareResult = key.GetHex().compare(comNode->mkey.GetHex());
-		if(compareResult < 0){
+		if(key < comNode->mkey){
 			comNode = comNode->mleft;
 			continue;
-		}
-		else if(compareResult > 0){
+		} else if (comNode->mkey < key) {
 			comNode = comNode->mright;
 			continue;
 		}

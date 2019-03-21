@@ -137,15 +137,13 @@ bool LoadBestNode(uint32_t height, uint256& blockhash, CBlockHeader& header, con
 // to accidentally later.
 // TODO This function could also check to make sure the states of the ticket
 //       treap value are valid.
-bool safeGet(Immutable& imu, uint256& hash, uint32_t* height, uint8_t* flag){
+bool safeGet(Immutable& imu, uint256& hash, uint32_t*& pheight, uint8_t*& pflag){
 	treapNode* node = imu.Get(hash);
-	height = nullptr;
-	flag = nullptr;
 	if(node == nullptr){
 		return error("%s: ticket %s was supposed to be in the passed treap, but could not be found", __func__, hash.GetHex());
 	}
-	height = &node->mheight;
-	flag = &node->mflag;
+	pheight = &node->mheight;
+	pflag = &node->mflag;
 	return true;
 }
 
@@ -164,7 +162,7 @@ bool safePut(Immutable& imu, uint256& hash, uint32_t& height, uint8_t& flag){
 // the mutated, immutable treap given as a result.  It first checks to see if
 // the key exists in the treap. If it does not, it returns an error.
 bool safeDelete(Immutable& imu, uint256& hash){
-	if(imu.Has(hash)){
+	if(!imu.Has(hash)){
 		return error("%s: attempted to delete non-existing key %s from treap", __func__, hash.GetHex());
 	}
 

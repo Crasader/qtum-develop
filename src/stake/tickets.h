@@ -223,7 +223,7 @@ private:
 
 bool InitDatabaseState(const Consensus::Params& params, TicketNode& node);
 bool LoadBestNode(uint32_t height, uint256& blockhash, CBlockHeader& header, const Consensus::Params params, TicketNode& node);
-bool safeGet(Immutable& imu, uint256& hash, uint32_t* height, uint8_t* flag);
+bool safeGet(Immutable& imu, uint256& hash, uint32_t*& pheight, uint8_t*& pflag);
 bool safePut(Immutable& imu, uint256& hash, uint32_t& height, uint8_t& flag);
 bool safeDelete(Immutable& imu, uint256& hash);
 bool connectNode(TicketNode& node, uint256 lotteryIV, TicketHashes& ticketsVoted, TicketHashes& revokedTickets, TicketHashes& newTickets, TicketNode& nodeOut);

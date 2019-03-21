@@ -223,12 +223,10 @@ public:
 		for(treapNode* node = mroot; node != nullptr;){
 			// Traverse left or right depending on the result of the
 			// comparison.
-			int32_t compareResult = key.GetHex().compare(node->mkey.GetHex());
-			if(compareResult < 0){
+			if(key < node->mkey){
 				node = node->mleft;
 				continue;
-			}
-			if(compareResult > 0){
+			} else if (node->mkey < key) {
 				node = node->mright;
 				continue;
 			}
