@@ -314,10 +314,10 @@ BOOST_AUTO_TEST_CASE(wallet_stx_vote_block)	// test many txs use one utxo
     for(uint16_t bnum = 0; bnum < Params().GetConsensus().TicketMaturity * 3; bnum++){
     	AddTxStx();
     }
-    auto list2 = wallet->ListCoins();
-    BOOST_CHECK_EQUAL(list2.size(), 1);
-    BOOST_CHECK_EQUAL(boost::get<CKeyID>(list2.begin()->first).ToString(), coinbaseAddress);
-    BOOST_CHECK_EQUAL(list2.begin()->second.size(), 13);
+    auto list = wallet->ListCoins();
+    BOOST_CHECK_EQUAL(list.size(), 1);
+    BOOST_CHECK_EQUAL(boost::get<CKeyID>(list.begin()->first).ToString(), coinbaseAddress);
+    BOOST_CHECK_EQUAL(list.begin()->second.size(), 13);
 
     CBlockIndex* preIndex = chainActive.Tip();	// before create ssgen
     addSSGen();

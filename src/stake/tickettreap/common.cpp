@@ -67,7 +67,7 @@ bool Immutable::Put(uint256& key, uint32_t height, uint8_t flag){
 
 	// The node is the root of the tree if there isn't already one.
 	if(mroot == nullptr){
-		mroot = new treapNode(key, height, flag, height);	//TODO priority right?
+		mroot = std::make_shared<treapNode>(key, height, flag, height);	//TODO priority right?
 		mcount = 1;
 		mtotalSize = mroot->nodeSize();
 		return error("%s: the tree have no node", __func__);
@@ -83,18 +83,8 @@ bool Immutable::Put(uint256& key, uint32_t height, uint8_t flag){
 	// with a new one that has the new value set and return.
 	bool Isleft;
 	parentStack parents;
-	for(treapNode* comNode = mroot; comNode != nullptr;){
-//		treapNode nodeCopy(node);
-//		treapNode* oldParent = parents.At(0);
-//		if(oldParent != nullptr){
-//			if(oldParent->mleft == &node){
-//				oldParent->mleft = &nodeCopy;
-//			}
-//			else {
-//				oldParent->mright = &nodeCopy;
-//			}
-//		}
-//		parents.Push(nodeCopy);
+	for(std::shared_ptr<treapNode> comNode = mroot; comNode != nullptr;){
+
 		parents.Push(comNode);
 
 		// Traverse left or right depending on the result of comparing
@@ -114,20 +104,20 @@ bool Immutable::Put(uint256& key, uint32_t height, uint8_t flag){
 
 		// Return new immutable treap with the replaced node and
 		// ancestors up to and including the root of the tree.
-		treapNode* newRoot = parents.At(parents.Len() - 1);
+		std::shared_ptr<treapNode> newRoot = parents.At(parents.Len() - 1);
 		mroot = newRoot;
 		return true;
 	}
 
 	// Recompute the size member of all parents, to account for inserted item.
-	treapNode* node = new treapNode(key, height, flag, height);	//TODO priority right?
+	std::shared_ptr<treapNode> node = std::make_shared<treapNode>(key, height, flag, height);	//TODO priority right?
 	for(int64_t num = 0; num < parents.Len(); num++){
-		treapNode* pnode = parents.At(num);
+		std::shared_ptr<treapNode> pnode = parents.At(num);
 		pnode->msize++;
 	}
 
 	// Link the new node into the binary tree in the correct position.
-	treapNode* parent = parents.At(0);
+	std::shared_ptr<treapNode> parent = parents.At(0);
 	if(Isleft){
 		parent->mleft = node;
 	} else {
@@ -136,11 +126,11 @@ bool Immutable::Put(uint256& key, uint32_t height, uint8_t flag){
 
 	// Perform any rotations needed to maintain the min-heap and replace
 	// the ancestors up to and including the tree root.
-	treapNode* newRoot = parents.At(parents.Len() - 1);
+	std::shared_ptr<treapNode> newRoot = parents.At(parents.Len() - 1);
 	while(parents.Len() > 0){
 		// There is nothing left to do when the node's priority is
 		// greater than or equal to its parent's priority.
-		treapNode* parent = parents.Pop();
+		std::shared_ptr<treapNode> parent = parents.Pop();
 		if(node->mpriority >= parent->mpriority){
 			break;
 		}
@@ -168,7 +158,7 @@ bool Immutable::Put(uint256& key, uint32_t height, uint8_t flag){
 		// Either set the new root of the tree when there is no
 		// grandparent or relink the grandparent to the node based on
 		// which side the old parent the node is replacing was on.
-		treapNode* grandparent = parents.At(0);
+		std::shared_ptr<treapNode> grandparent = parents.At(0);
 		if(grandparent == nullptr){
 			newRoot = node;
 		} else if (grandparent->mleft == parent){
@@ -191,8 +181,8 @@ bool Immutable::Delete(const uint256& key){
 	// Find the node for the key while constructing a list of parents while
 	// doing so.
 	parentStack parents;
-	treapNode* delNode = nullptr;
-	for(treapNode* comNode = mroot; comNode != nullptr;){
+	std::shared_ptr<treapNode> delNode = nullptr;
+	for(std::shared_ptr<treapNode> comNode = mroot; comNode != nullptr;){
 		parents.Push(comNode);
 
 		// Traverse left or right depending on the result of the
@@ -215,7 +205,7 @@ bool Immutable::Delete(const uint256& key){
 
 	// When the only node in the tree is the root node and it is the one
 	// being deleted, there is nothing else to do besides removing it.
-	treapNode* parent = parents.At(1);
+	std::shared_ptr<treapNode> parent = parents.At(1);
 	if(parent == nullptr && delNode->mleft == nullptr && delNode->mright == nullptr){
 		mroot = nullptr;
 		mcount = 0;
@@ -230,18 +220,18 @@ bool Immutable::Delete(const uint256& key){
 	// TODO simplify reduce copy times
 	parentStack newParents;
 	for(int64_t i = parents.Len(); i > 0; i--) {
-		treapNode* pnode = parents.At(i -1);
+		std::shared_ptr<treapNode> pnode = parents.At(i -1);
 		pnode->msize--;
 		newParents.Push(pnode);
 	}
 	delNode = newParents.Pop();
-	treapNode* parentOut = newParents.At(0);
+	std::shared_ptr<treapNode> parentOut = newParents.At(0);
 
 
 	// Perform rotations to move the node to delete to a leaf position while
 	// maintaining the min-heap while replacing the modified children.
-	treapNode* child;
-	treapNode* newRoot = newParents.At(newParents.Len() - 1);
+	std::shared_ptr<treapNode> child = nullptr;
+	std::shared_ptr<treapNode> newRoot = newParents.At(newParents.Len() - 1);
 	while(delNode->mleft != nullptr || delNode->mright != nullptr){
 		// Choose the child with the higher priority.
 		bool isLeft = false;
@@ -297,7 +287,7 @@ bool Immutable::Delete(const uint256& key){
 	} else {
 		parentOut->mleft = nullptr;
 	}
-	delete delNode;	// TODO use share_ptr<treapNode> replace of treapNode*
+	delNode.reset();	// delete the treapNode
 
 	mroot = newRoot;
 	mcount--;
@@ -313,18 +303,18 @@ void Immutable::ForEach(TicketHashes& hashes){
 	// nodes to traverse and loop until they, and all of their child nodes,
 	// have been traversed.
 	parentStack parents;
-	for(treapNode* node = mroot; node != nullptr; node = node->mleft){
+	for(std::shared_ptr<treapNode> node = mroot; node != nullptr; node = node->mleft){
 		parents.Push(node);
 	}
 
 	while(parents.Len() > 0){
-		treapNode* pnode = parents.Pop();
+		std::shared_ptr<treapNode> pnode = parents.Pop();
 
 		hashes.push_back(pnode->mkey);
 
 		// Extend the nodes to traverse by all children to the left of
 		// the current node's right child.
-		for(treapNode* nodeIn = pnode->mright; nodeIn != nullptr; nodeIn = nodeIn->mleft){
+		for(std::shared_ptr<treapNode> nodeIn = pnode->mright; nodeIn != nullptr; nodeIn = nodeIn->mleft){
 			parents.Push(nodeIn);
 		}
 	}
@@ -352,11 +342,11 @@ void Immutable::FetchWinnersAndExpired(std::vector<uint32_t> idxs, uint32_t heig
 	// nodes to traverse and loop until they, and all of their child nodes,
 	// have been traversed.
 	parentStack parents;
-	for(treapNode* node = mroot; node != nullptr; node = node->mleft){
+	for(std::shared_ptr<treapNode> node = mroot; node != nullptr; node = node->mleft){
 		parents.Push(node);
 	}
 	while(parents.Len() > 0){
-		treapNode* pnode = parents.Pop();
+		std::shared_ptr<treapNode> pnode = parents.Pop();
 		if(pnode->mheight <= heightLine){
 			expired.push_back(&pnode->mkey);
 		}
@@ -370,7 +360,7 @@ void Immutable::FetchWinnersAndExpired(std::vector<uint32_t> idxs, uint32_t heig
 
 		// Extend the nodes to traverse by all children to the left of
 		// the current node's right child.
-		for(treapNode* rnode = pnode->mright; rnode != nullptr; rnode = rnode->mleft){
+		for(std::shared_ptr<treapNode> rnode = pnode->mright; rnode != nullptr; rnode = rnode->mleft){
 			parents.Push(rnode);
 		}
 	}

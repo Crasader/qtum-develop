@@ -148,7 +148,7 @@ public:
 	// ExistsExpiredTicket returns whether or not a ticket was ever expired from
 	// the perspective of this stake node.
 	bool ExistsExpiredTicket(uint256& hash){
-		treapNode* node = missedTickets.Get(hash);
+		std::shared_ptr<treapNode> node = missedTickets.Get(hash);
 		if(node->mflag & TICKET_STATE_EXPIRED) return true;
 		node = revokedTickets.Get(hash);
 		if(node->mflag & TICKET_STATE_EXPIRED) return true;

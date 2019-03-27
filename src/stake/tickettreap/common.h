@@ -15,6 +15,7 @@
 #include <vector>
 #include <stdio.h>
 #include <stdint.h>
+#include <memory>
 
 
 // ptrSize is the number of bytes in a native pointer.
@@ -56,16 +57,36 @@ const static uint8_t TICKET_STATE_NUM = 4;
 class treapNode {
 public:
 
-	explicit treapNode(): mkey(), mheight(0), mflag(0), mpriority(0), msize(0), mleft(nullptr), mright(nullptr) {}
+	explicit treapNode() { SetNull();}
 
 	treapNode(treapNode&) = default;
 	treapNode(const treapNode&) = default;
 
-	explicit treapNode(const uint256& key, uint32_t height, uint8_t flag, uint32_t priority): mkey(key), mheight(height), mflag(flag),
-			mpriority(priority), msize(1), mleft(nullptr), mright(nullptr) {}
+	void SetNull(){
+		mkey = uint256();
+		mheight = -1;
+		mflag = 0;
+		mpriority = 0;
+		msize = 0;
+		mleft = nullptr;
+		mright = nullptr;
+	}
+
+	bool IsNull(){
+		return mheight == (uint32_t)-1;	// -1 = 0xFFFFFFFF
+	}
+
+	explicit treapNode(const uint256& key, uint32_t height, uint8_t flag, uint32_t priority){
+		SetNull();
+		mkey = key;
+		mheight = height;
+		mflag = flag;
+		mpriority = priority;
+		msize = 1;
+	}
 
 	friend bool operator==(treapNode& a, treapNode& b){
-		return a.mkey.GetHex() == b.mkey.GetHex() && a.mheight == b.mheight && a.mflag == b.mflag && a.mpriority == b.mpriority &&
+		return a.mkey == b.mkey && a.mheight == b.mheight && a.mflag == b.mflag && a.mpriority == b.mpriority &&
 				a.mright == b.mright && a.mleft == b.mleft && a.msize == b.msize;
 	}
 
@@ -102,8 +123,8 @@ public:
 	uint8_t mflag;
 	uint32_t mpriority;
 	uint32_t msize;
-	treapNode* mleft;
-	treapNode* mright;
+	std::shared_ptr<treapNode> mleft;
+	std::shared_ptr<treapNode> mright;
 
 };
 
@@ -124,7 +145,7 @@ public:
 		return mindex;
 	}
 
-	treapNode* At(uint64_t n){
+	std::shared_ptr<treapNode> At(uint64_t n){
 		int64_t index = mindex - n -1;
 		if(index < 0){
 			return nullptr;
@@ -134,25 +155,25 @@ public:
 
 	// Pop removes the top item from the stack.  It returns nil if the stack is
 	// empty.
-	treapNode* Pop(){
+	std::shared_ptr<treapNode> Pop(){
 		if(mindex == 0)
 			return nullptr;
 
 		mindex--;
-		treapNode* node = mitems[mindex];
+		std::shared_ptr<treapNode> node = mitems[mindex];
 		mitems.pop_back();
 		return node;
 	}
 
 	// Push pushes the passed item onto the top of the stack.
-	void Push(treapNode* node){
+	void Push(std::shared_ptr<treapNode> node){
 		mitems.push_back(node);
 		mindex++;
 	}
 
 private:
 	int64_t mindex;
-	std::vector<treapNode*> mitems;
+	std::vector<std::shared_ptr<treapNode>> mitems;
 };
 
 // Immutable represents a treap data structure which is used to hold ordered
@@ -193,7 +214,7 @@ public:
 	explicit Immutable(Immutable& imuNode): mroot(imuNode.mroot), mcount(imuNode.mcount), mtotalSize(imuNode.mtotalSize) {}
 	explicit Immutable(const Immutable& imuNode): mroot(imuNode.mroot), mcount(imuNode.mcount), mtotalSize(imuNode.mtotalSize) {}
 
-	explicit Immutable(treapNode* root, int64_t count, uint64_t totalSize): mroot(root), mcount(count), mtotalSize(totalSize){}
+	explicit Immutable(std::shared_ptr<treapNode> root, int64_t count, uint64_t totalSize): mroot(root), mcount(count), mtotalSize(totalSize){}
 
 	friend class TicketNode;
 
@@ -219,8 +240,8 @@ public:
 
 	// get returns the treap node that contains the passed key.  It will return nil
 	// when the key does not exist.
-	treapNode* Get(uint256& key) {
-		for(treapNode* node = mroot; node != nullptr;){
+	std::shared_ptr<treapNode> Get(uint256& key) {
+		for(std::shared_ptr<treapNode> node = mroot; node != nullptr;){
 			// Traverse left or right depending on the result of the
 			// comparison.
 			if(key < node->mkey){
@@ -240,7 +261,6 @@ public:
 
 	// Has returns whether or not the passed key exists.
 	bool Has(uint256& key) {
-		treapNode node;
 		if(Get(key)){
 			return true;
 		}
@@ -263,7 +283,7 @@ public:
 	void FetchWinnersAndExpired(std::vector<uint32_t> idxs, uint32_t height, std::vector<uint256*>& winners, std::vector<uint256*>& expired);
 
 private:
-	treapNode* mroot;
+	std::shared_ptr<treapNode> mroot;
 	int64_t mcount;
 
 	// totalSize is the best estimate of the total size of of all data in

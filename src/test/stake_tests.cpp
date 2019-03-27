@@ -456,13 +456,12 @@ BOOST_AUTO_TEST_CASE(ticket_treap_common){
 	bool back = false;
 
 	for(uint16_t u = 0; u < 3; u++){
-		std::vector<treapNode*> vecTreap;
+		std::vector<std::shared_ptr<treapNode>> vecTreap;
 		vecTreap.resize((uint64_t)tests[u]);
 		for(uint16_t idx = 0; idx < tests[u]; idx++){
 			uint256 key = uint256S(strprintf("%d", idx));
 			uint32_t height = (uint32_t)idx;
-			treapNode node(key, height, 0, height);
-			vecTreap[idx] = &node;
+			vecTreap[idx] = std::make_shared<treapNode>(key, height, 0, height);
 		}
 
 		// Push all of the nodes onto the parent stack while testing
@@ -481,7 +480,7 @@ BOOST_AUTO_TEST_CASE(ticket_treap_common){
 
 			// Ensure the node at each index is the expected one.
 			for(uint16_t num = 0; num <= idx; num++){
-				treapNode* atNode = stack.At(idx - num);
+				std::shared_ptr<treapNode> atNode = stack.At(idx - num);
 				if(!(atNode == vecTreap[num])){
 					BOOST_TEST_MESSAGE(strprintf("At #%d (%d): mismatched node", u, idx-num));
 					back = true;
@@ -499,7 +498,7 @@ BOOST_AUTO_TEST_CASE(ticket_treap_common){
 
 		// Ensure each popped node is the expected one.
 		for(uint16_t idx = 0; idx < tests[u]; idx++){
-			treapNode* node = stack.Pop();
+			std::shared_ptr<treapNode> node = stack.Pop();
 			uint16_t len = tests[u] - idx -1;
 			if(node != vecTreap[len]){
 				BOOST_TEST_MESSAGE(strprintf("At #%d (%d): mismatched node", u, idx));
@@ -520,7 +519,7 @@ BOOST_AUTO_TEST_CASE(ticket_treap_common){
 
 		// Ensure attempting to retrieve a node at an index beyond the
 		// stack's length returns nil.
-		treapNode* nodeOut = stack.At(2);
+		std::shared_ptr<treapNode> nodeOut = stack.At(2);
 		if(nodeOut != nullptr){
 			BOOST_TEST_MESSAGE(strprintf("At #%d: did not give back nil ", u));
 			continue;
@@ -528,7 +527,7 @@ BOOST_AUTO_TEST_CASE(ticket_treap_common){
 
 		// Ensure attempting to pop a node from an empty stack returns
 		// nil.
-		treapNode* nodeOut2 = stack.Pop();
+		std::shared_ptr<treapNode> nodeOut2 = stack.Pop();
 		if(nodeOut2 != nullptr){
 			BOOST_TEST_MESSAGE(strprintf("Pop #%d: did not give back nil", u));
 			continue;
@@ -598,7 +597,7 @@ BOOST_AUTO_TEST_CASE(ticket_treap_immutable_sequential){
 		// Ensure the treap has the key.
 		BOOST_CHECK(testTreap.Has(key));
 
-		treapNode* nodeOut = testTreap.Get(key);
+		std::shared_ptr<treapNode> nodeOut = testTreap.Get(key);
 		if(nodeOut != nullptr)
 			BOOST_CHECK_EQUAL(nodeOut->mheight, height);
 
@@ -676,7 +675,7 @@ BOOST_AUTO_TEST_CASE(ticket_treap_immutable_reverse_sequential){
 		// Ensure the treap has the key.
 		BOOST_CHECK(testTreap.Has(key));
 
-		treapNode* nodeOut = testTreap.Get(key);
+		std::shared_ptr<treapNode> nodeOut = testTreap.Get(key);
 		if(nodeOut != nullptr)
 			BOOST_CHECK_EQUAL(nodeOut->mheight, height);
 
@@ -729,7 +728,7 @@ BOOST_AUTO_TEST_CASE(ticket_treap_immutable_unordered){
 		// Ensure the treap has the key.
 		BOOST_CHECK(testTreap.Has(key));
 
-		treapNode* nodeOut = testTreap.Get(key);
+		std::shared_ptr<treapNode> nodeOut = testTreap.Get(key);
 		if(nodeOut != nullptr)
 			BOOST_CHECK_EQUAL(nodeOut->mheight, height);
 
@@ -776,7 +775,7 @@ BOOST_AUTO_TEST_CASE(ticket_treap_immutable_duplicateput){
 		// Ensure the key still exists and is the new value.
 		BOOST_CHECK(testTreap.Has(key));
 
-		treapNode* nodeOut = testTreap.Get(key);
+		std::shared_ptr<treapNode> nodeOut = testTreap.Get(key);
 		if(nodeOut != nullptr)
 			BOOST_CHECK_EQUAL(nodeOut->mheight, expectedH);
 	}
@@ -821,7 +820,7 @@ BOOST_AUTO_TEST_CASE(ticket_treap_immutable_snapshot){
 		// Ensure the treap has the key.
 		BOOST_CHECK(testTreap.Has(key));
 
-		treapNode* nodeOut = testTreap.Get(key);
+		std::shared_ptr<treapNode> nodeOut = testTreap.Get(key);
 		if(nodeOut != nullptr)
 			BOOST_CHECK_EQUAL(nodeOut->mheight, height);
 	}

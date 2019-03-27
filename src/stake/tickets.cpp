@@ -138,7 +138,7 @@ bool LoadBestNode(uint32_t height, uint256& blockhash, CBlockHeader& header, con
 // TODO This function could also check to make sure the states of the ticket
 //       treap value are valid.
 bool safeGet(Immutable& imu, uint256& hash, uint32_t*& pheight, uint8_t*& pflag){
-	treapNode* node = imu.Get(hash);
+	std::shared_ptr<treapNode> node = imu.Get(hash);
 	if(node == nullptr){
 		return error("%s: ticket %s was supposed to be in the passed treap, but could not be found", __func__, hash.GetHex());
 	}
@@ -187,11 +187,11 @@ bool TicketNode::ForEachByHeight(uint32_t heightLessThan){
 	// nodes to traverse and loop until they, and all of their child nodes,
 	// have been traversed.
 	parentStack parents;
-	for(treapNode* node = liveTickets.mroot; node != nullptr && node->mpriority < heightLessThan; node = node->mleft){
+	for(std::shared_ptr<treapNode> node = liveTickets.mroot; node != nullptr && node->mpriority < heightLessThan; node = node->mleft){
 		parents.Push(node);
 	}
 	while(parents.Len() > 0){
-		treapNode* pnode = parents.Pop();
+		std::shared_ptr<treapNode> pnode = parents.Pop();
 		pnode->mflag |= TICKET_STATE_MISSED;
 		pnode->mflag |= TICKET_STATE_EXPIRED;
 		if(safeDelete(liveTickets, pnode->mkey) == false){
@@ -211,7 +211,7 @@ bool TicketNode::ForEachByHeight(uint32_t heightLessThan){
 
 		// Extend the nodes to traverse by all children to the left of
 		// the current node's right child.
-		for(treapNode* nodeIn = pnode->mright; nodeIn != nullptr && nodeIn->mpriority < heightLessThan; nodeIn = nodeIn->mleft){
+		for(std::shared_ptr<treapNode> nodeIn = pnode->mright; nodeIn != nullptr && nodeIn->mpriority < heightLessThan; nodeIn = nodeIn->mleft){
 			parents.Push(nodeIn);
 		}
 	}
