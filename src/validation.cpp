@@ -5026,6 +5026,55 @@ static bool CheckBlockHeader(const CBlockHeader& block, CValidationState& state,
     return true;
 }
 
+// Get block hash and height byte code which ssgen vote
+bool GetBlockHashAndHeight(const CTransaction& stx, std::vector<unsigned char>& vch){
+
+	std::vector<valtype> vSolutions;
+	txnouttype whichType;
+
+	const CTxOut& txout = stx.vout[0]; // contain ssgen byte code about vote block hash & height
+
+	if (!Solver(txout.scriptPubKey, whichType, vSolutions))
+		return error("%s: Solver SSGen tx vout[0].scriptPubKey failed.", __func__);
+
+	if (whichType != TX_NULL_DATA)
+	{
+		return error("%s: SSGen tx vout[0].scriptPubKey's type is not TX_NULL_DATA.", __func__);
+	}
+	// Block signing key also can be encoded in the nonspendable output
+	// This allows to not pollute UTXO set with useless outputs e.g. in case of multisig staking
+
+	const CScript& script = txout.scriptPubKey;
+	CScript::const_iterator pc = script.begin();
+	opcodetype opcode;
+	valtype vchPushValue;
+
+	if (!script.GetOp(pc, opcode, vch))
+		return error("%s: GetOp about OP_RETURN fialed", __func__);
+	if (opcode != OP_RETURN)
+		return error("%s: the first opcode of SSGen tx vout[0].scriptPubKey is not OP_RETURN.", __func__);
+	if (!script.GetOp(pc, opcode, vch))
+		return error("%s: GetOp about byte code about block hash & height fialed.", __func__);
+
+	return true;
+}
+
+bool CheckSSGenVote(const CBlock& block, const CTransaction& stx){
+	std::vector<unsigned char> vch;
+	if(!GetBlockHashAndHeight(stx, vch)){
+		return error("%s: GetBlockHashAndHeight failed", __func__);
+	}
+
+	vch.resize(32);
+	uint256 prevBlockHash(vch);
+
+	if(prevBlockHash == block.hashPrevBlock){
+		return true;
+	}
+	return error("%s: SSGen vote block not match the previous block.", __func__);
+}
+
+
 bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::Params& consensusParams, bool fCheckPOW, bool fCheckMerkleRoot, bool fCheckSig)
 {
     // These are checks that are independent of context.
