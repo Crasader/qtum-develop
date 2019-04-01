@@ -1,7 +1,12 @@
-// Author: yaopengfei(yuitta@163.com)
-// this file is ported from decred staketx.go
-// Distributed under the MIT software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+/*
+ * staketx.h
+ *
+ *  Created on: Dec 8, 2018
+ *  Author: yaopengfei(yuitta@163.com)
+ *  this file is ported from decred tickets.go
+ *  Distributed under the MIT software license, see the accompanying
+ *  file COPYING or http://www.opensource.org/licenses/mit-license.php.
+*/
 #ifndef BITCOIN_STAKE_STAKETX_H
 #define BITCOIN_STAKE_STAKETX_H
 

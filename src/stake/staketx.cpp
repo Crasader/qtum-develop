@@ -1,7 +1,13 @@
-// Author: yaopengfei(yuitta@163.com)
-// this file is ported from decred staketx.go
-// Distributed under the MIT software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+/*
+ * staketx.cpp
+ *
+ *  Created on: Dec 8, 2018
+ *  Author: yaopengfei(yuitta@163.com)
+ *  this file is ported from decred tickets.go
+ *  Distributed under the MIT software license, see the accompanying
+ *  file COPYING or http://www.opensource.org/licenses/mit-license.php.
+*/
+
 #include <stake/staketx.h>
 
 

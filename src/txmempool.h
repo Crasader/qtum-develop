@@ -20,6 +20,7 @@
 #include <primitives/transaction.h>
 #include <sync.h>
 #include <random.h>
+#include <stake/staketx.h>
 
 #include <boost/multi_index_container.hpp>
 #include <boost/multi_index/hashed_index.hpp>
@@ -358,11 +359,24 @@ public:
     }
 };
 
+class CompareTxIsSSGen // TODO, avoid ssgen double spend
+{
+public:
+	bool operator()(const CTxMemPoolEntry& a, const CTxMemPoolEntry& b) const
+	{
+		CValidationStakeState astate;
+		CValidationStakeState bstate;
+		return IsSSGen(a.GetTx(), astate) && !IsSSGen(b.GetTx(), bstate);
+	}
+};
+
+
 // Multi_index tag names
 struct descendant_score {};
 struct entry_time {};
 struct ancestor_score {};
 struct ancestor_score_or_gas_price {};
+struct ssgen_sort {};
 
 class CBlockPolicyEstimator;
 
@@ -530,7 +544,13 @@ public:
                 boost::multi_index::tag<ancestor_score_or_gas_price>,
                 boost::multi_index::identity<CTxMemPoolEntry>,
                 CompareTxMemPoolEntryByAncestorFeeOrGasPrice
-            >
+            >,
+            // sorted by tx is ssgen or not
+			boost::multi_index::ordered_non_unique<
+				boost::multi_index::tag<ssgen_sort>,
+				boost::multi_index::identity<CTxMemPoolEntry>,
+				CompareTxIsSSGen
+			>
         >
     > indexed_transaction_set;
 

@@ -24,6 +24,7 @@
 #include <chainparams.h>
 #include <pos.h>
 #include <stakenode.h>
+#include <txmempool.h>
 
 #include <boost/test/unit_test.hpp>
 #include <univalue.h>
@@ -117,16 +118,14 @@ public:
 		CCoinControl dummy;
 		CValidationState state;
 
-//		for(uint16_t txCreateNum = 0; txCreateNum < chainparams.GetConsensus().CoinbaseMaturity * chainparams.GetConsensus().MaxFreshStakePerBlock; txCreateNum++){
-//			CScript scriptTx = GetScriptForDestination(coinbaseKey.GetPubKey().GetID());
-//			vecSend.push_back({scriptTx, 1 * COIN, false});
-//		}
-
 		CScript scriptTx = GetScriptForDestination(coinbaseKey.GetPubKey().GetID());
 		vecSend.push_back({scriptTx, 1 * COIN, false});
 
         BOOST_CHECK(wallet->CreateTransaction(vecSend, wtx, reservekey, fee, changePos, error, dummy));
         BOOST_CHECK(wallet->CommitTransaction(wtx, reservekey, nullptr, state));
+
+        auto beforIt = mempool.mapTx.find(wtx.tx->GetHash());
+        BOOST_CHECK(beforIt != mempool.mapTx.end());
 
         CMutableTransaction blocktx;
         {
@@ -136,6 +135,8 @@ public:
 
         CreateAndProcessBlock({CMutableTransaction(blocktx)}, {}, GetScriptForRawPubKey(coinbaseKey.GetPubKey()));
 
+        auto afterIt = mempool.mapTx.find(wtx.tx->GetHash());
+        BOOST_CHECK(afterIt == mempool.mapTx.end());
         {
             LOCK(wallet->cs_wallet);
             auto it = wallet->mapWallet.find(wtx.GetHash());
@@ -161,12 +162,14 @@ public:
         for(uint16_t num = 0; num < stxTotalNum; num++){
         	CWalletTx swtx;
         	BOOST_CHECK(wallet->CreateTicketPurchaseTx(swtx, ticketPrice, fee, error, dummy));
-        	BOOST_TEST_MESSAGE(strprintf("%s", error));
+//        	BOOST_TEST_MESSAGE(strprintf("%s", error));
         	BOOST_CHECK(wallet->CommitTransaction(swtx, reservekey, nullptr, state));
-            BOOST_TEST_MESSAGE(strprintf("%s%s (code %i)",
-                    state.GetRejectReason(),
-                    state.GetDebugMessage().empty() ? "" : ", "+state.GetDebugMessage(),
-                    state.GetRejectCode()));
+//            BOOST_TEST_MESSAGE(strprintf("%s%s (code %i)",
+//                    state.GetRejectReason(),
+//                    state.GetDebugMessage().empty() ? "" : ", "+state.GetDebugMessage(),
+//                    state.GetRejectCode()));
+			auto beforIt = mempool.mapTx.find(swtx.tx->GetHash());
+			BOOST_CHECK(beforIt != mempool.mapTx.end());
 			swtxVch[num] = swtx;
 			state.clear();
         }
@@ -189,6 +192,9 @@ public:
                 auto sit = wallet->mapWalletStx.find(swtxVch[txnum].GetHash());
                 BOOST_CHECK(sit != wallet->mapWalletStx.end());
                 sit->second.SetMerkleBranch(chainActive.Tip(), 1 + txnum);
+
+				auto afterIt = mempool.mapTx.find(swtxVch[txnum].GetHash());
+				BOOST_CHECK(afterIt == mempool.mapTx.end());
             }
         }
     }
@@ -213,12 +219,14 @@ public:
         		if(it != wallet->mapWalletStx.end()){
         			if(DetermineTxType(*it->second.tx, stakestate) == TxTypeSStx && wallet->IsMine(it->second.tx->vout[0]) == ISMINE_SPENDABLE){
         				BOOST_CHECK(wallet->CreateVoteTx(wtxNew, pindexPrev, *it->second.tx, failedstr, (uint32_t)pindexPrev->nHeight + 1));
-        				BOOST_TEST_MESSAGE(strprintf("%s", failedstr));
+//        				BOOST_TEST_MESSAGE(strprintf("%s", failedstr));
         				BOOST_CHECK(wallet->CommitTransaction(wtxNew, reservekey, nullptr, state));
-        	            BOOST_TEST_MESSAGE(strprintf("%s%s (code %i)",
-        	                    state.GetRejectReason(),
-        	                    state.GetDebugMessage().empty() ? "" : ", "+state.GetDebugMessage(),
-        	                    state.GetRejectCode()));
+//        	            BOOST_TEST_MESSAGE(strprintf("%s%s (code %i)",
+//        	                    state.GetRejectReason(),
+//        	                    state.GetDebugMessage().empty() ? "" : ", "+state.GetDebugMessage(),
+//        	                    state.GetRejectCode()));
+        				auto beforIt = mempool.mapTx.find(wtxNew.tx->GetHash());
+        				BOOST_CHECK(beforIt != mempool.mapTx.end());
         				swtxVch.push_back(wtxNew);
         			}
         		}
@@ -244,6 +252,9 @@ public:
                 auto sit = wallet->mapWalletStx.find(swtxVch[txnum].GetHash());
                 BOOST_CHECK(sit != wallet->mapWalletStx.end());
                 sit->second.SetMerkleBranch(chainActive.Tip(), 1 + txnum);
+
+				auto afterIt = mempool.mapTx.find(swtxVch[txnum].GetHash());
+				BOOST_CHECK(afterIt == mempool.mapTx.end());
             }
         }
     }

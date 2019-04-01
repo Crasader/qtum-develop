@@ -5182,6 +5182,24 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
     if (nSigOps * WITNESS_SCALE_FACTOR > dgpMaxBlockSigOps)
         return state.DoS(100, false, REJECT_INVALID, "bad-blk-sigops", false, "out-of-bounds SigOpCount");
 
+	// check ssgen num & voteblock
+	if(TestStxDebug && fCheckMerkleRoot && chainActive.Tip() && chainActive.Tip()->nHeight >= consensusParams.StakeValidationHeight - 1){
+		uint16_t ssgenNum = 0;
+		for(auto stx : block.svtx){
+		CValidationStakeState stakestate;
+			if(IsSSGen(*stx, stakestate)){
+			if(!CheckSSGenVote(block, *stx)){
+					return state.DoS(100, false, REJECT_INVALID, "bad-ssgen-vote", false, "ssgen voted block is not the previous block.");
+				}
+				ssgenNum++;
+			}
+		}
+		if(ssgenNum <= consensusParams.TicketsPerBlock / 2){
+			return state.DoS(100, false, REJECT_INVALID, "bad-ssgen-num", false, "ssgen voted number is less than mininum voters number: 3.");
+		}
+	}
+
+
     if (fCheckPOW && fCheckMerkleRoot)
         block.fChecked = true;
 

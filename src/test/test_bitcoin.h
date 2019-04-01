@@ -76,7 +76,7 @@ struct TestingSetupTemp: public BasicTestingSetup {
     CScheduler scheduler;
     std::unique_ptr<PeerLogicValidation> peerLogic;
 
-    explicit TestingSetupTemp(const std::string& chainName = CBaseChainParams::MAIN);
+    explicit TestingSetupTemp(const std::string& chainName = CBaseChainParams::UNITTEST);
     ~TestingSetupTemp();
 };
 
