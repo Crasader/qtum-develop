@@ -266,7 +266,7 @@ CConditionVariable cvBlockChange;
 int nScriptCheckThreads = 0;
 std::atomic_bool fImporting(false);
 std::atomic_bool fReindex(false);
-bool fTxIndex = false;
+bool fTxIndex = true;	// for ssgen check must set fTxIndex true
 bool fLogEvents = false;
 bool fHavePruned = false;
 bool fPruneMode = false;
@@ -434,11 +434,13 @@ bool CheckSequenceLocks(const CTransaction &tx, int flags, LockPoints* lp, bool 
         lockPair.second = lp->time;
     }
     else {
+        CValidationStakeState stakestate;
+        TxType txtype = DetermineTxType(tx, stakestate);
         // pcoinsTip contains the UTXO set for chainActive.Tip()
         CCoinsViewMemPool viewMemPool(pcoinsTip.get(), mempool);
         std::vector<int> prevheights;
         prevheights.resize(tx.vin.size());
-        for (size_t txinIndex = 0; txinIndex < tx.vin.size(); txinIndex++) {
+        for (size_t txinIndex = 0; txinIndex < tx.vin.size() && txtype != TxTypeSSGen; txinIndex++) {
             const CTxIn& txin = tx.vin[txinIndex];
             Coin coin;
             if (!viewMemPool.GetCoin(txin.prevout, coin)) {
@@ -581,24 +583,29 @@ static bool CheckInputsFromMempoolAndCache(const CTransaction& tx, CValidationSt
     LOCK(pool.cs);
 
     assert(!tx.IsCoinBase());
-    for (const CTxIn& txin : tx.vin) {
-        const Coin& coin = view.AccessCoin(txin.prevout);
+    CValidationStakeState stakestate;
+    TxType txtype = DetermineTxType(tx, stakestate);
 
-        // At this point we haven't actually checked if the coins are all
-        // available (or shouldn't assume we have, since CheckInputs does).
-        // So we just return failure if the inputs are not available here,
-        // and then only have to check equivalence for available inputs.
-        if (coin.IsSpent()) return false;
+    if(txtype != TxTypeSSGen){
+        for (const CTxIn& txin : tx.vin) {
+            const Coin& coin = view.AccessCoin(txin.prevout);
 
-        const CTransactionRef& txFrom = pool.get(txin.prevout.hash);
-        if (txFrom) {
-            assert(txFrom->GetHash() == txin.prevout.hash);
-            assert(txFrom->vout.size() > txin.prevout.n);
-            assert(txFrom->vout[txin.prevout.n] == coin.out);
-        } else {
-            const Coin& coinFromDisk = pcoinsTip->AccessCoin(txin.prevout);
-            assert(!coinFromDisk.IsSpent());
-            assert(coinFromDisk.out == coin.out);
+            // At this point we haven't actually checked if the coins are all
+            // available (or shouldn't assume we have, since CheckInputs does).
+            // So we just return failure if the inputs are not available here,
+            // and then only have to check equivalence for available inputs.
+            if (coin.IsSpent()) return false;
+
+            const CTransactionRef& txFrom = pool.get(txin.prevout.hash);
+            if (txFrom) {
+                assert(txFrom->GetHash() == txin.prevout.hash);
+                assert(txFrom->vout.size() > txin.prevout.n);
+                assert(txFrom->vout[txin.prevout.n] == coin.out);
+            } else {
+                const Coin& coinFromDisk = pcoinsTip->AccessCoin(txin.prevout);
+                assert(!coinFromDisk.IsSpent());
+                assert(coinFromDisk.out == coin.out);
+            }
         }
     }
 
@@ -611,6 +618,7 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
 {
     const CTransaction& tx = *ptx;
     const uint256 hash = tx.GetHash();
+    CBlockIndex* preIndex = chainActive.Tip();
     AssertLockHeld(cs_main);
     LOCK(pool.cs); // mempool "read lock" (held through GetMainSignals().TransactionAddedToMempool())
     if (pfMissingInputs) {
@@ -714,24 +722,34 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
         }
 
         // do all inputs exist?
-        for (const CTxIn txin : tx.vin) {
-            if (!pcoinsTip->HaveCoinInCache(txin.prevout)) {
-                coins_to_uncache.push_back(txin.prevout);
-            }
-            if (!view.HaveCoin(txin.prevout)) {
-                // Are inputs missing because we already have the tx?
-                for (size_t out = 0; out < tx.vout.size(); out++) {
-                    // Optimistically just do efficient check of cache for outputs
-                    if (pcoinsTip->HaveCoinInCache(COutPoint(hash, out))) {
-                        return state.Invalid(false, REJECT_DUPLICATE, "txn-already-known");
-                    }
-                }
-                // Otherwise assume this might be an orphan tx for which we just haven't seen parents yet
-                if (pfMissingInputs) {
-                    *pfMissingInputs = true;
-                }
-                return false; // fMissingInputs and !state.IsInvalid() is used to detect this condition, don't set state.Invalid()
-            }
+        CValidationStakeState stakestate;
+        TxType txtype = DetermineTxType(tx, stakestate);
+        if(txtype != TxTypeSSGen){             // except ssgen, ssgen's vin not in cacheCoin
+			for (const CTxIn txin : tx.vin) {
+				if (!pcoinsTip->HaveCoinInCache(txin.prevout)) {
+					coins_to_uncache.push_back(txin.prevout);
+				}
+				if (!view.HaveCoin(txin.prevout)) {
+					// Are inputs missing because we already have the tx?
+					for (size_t out = 0; out < tx.vout.size(); out++) {
+						// Optimistically just do efficient check of cache for outputs
+						if (pcoinsTip->HaveCoinInCache(COutPoint(hash, out))) {
+							return state.Invalid(false, REJECT_DUPLICATE, "txn-already-known");
+						}
+					}
+					// Otherwise assume this might be an orphan tx for which we just haven't seen parents yet
+					if (pfMissingInputs) {
+						*pfMissingInputs = true;
+					}
+					return false; // fMissingInputs and !state.IsInvalid() is used to detect this condition, don't set state.Invalid()
+				}
+			}
+        } else {
+        	std::vector<uint256> winHashes = preIndex->stakeNode->Winners();
+        	auto it = std::find(winHashes.begin(), winHashes.end(), tx.vin[1].prevout.hash);
+        	if(it == winHashes.end()){
+        		return state.DoS(100, false, REJECT_INVALID, "fake ssgen");
+        	}
         }
 
         // Bring the best block into scope
@@ -749,16 +767,16 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
             return state.DoS(0, false, REJECT_NONSTANDARD, "non-BIP68-final");
 
         CAmount nFees = 0;
-        if (!Consensus::CheckTxInputs(tx, state, view, GetSpendHeight(view), nFees)) {
+        if (txtype != TxTypeSSGen && !Consensus::CheckTxInputs(tx, state, view, GetSpendHeight(view), nFees)) {
             return error("%s: Consensus::CheckTxInputs: %s, %s", __func__, tx.GetHash().ToString(), FormatStateMessage(state));
         }
 
         // Check for non-standard pay-to-script-hash in inputs
-        if (fRequireStandard && !AreInputsStandard(tx, view))
+        if (txtype != TxTypeSSGen && fRequireStandard && !AreInputsStandard(tx, view))
             return state.Invalid(false, REJECT_NONSTANDARD, "bad-txns-nonstandard-inputs");
 
         // Check for non-standard witness in P2WSH
-        if (tx.HasWitness() && fRequireStandard && !IsWitnessStandard(tx, view))
+        if (txtype != TxTypeSSGen && tx.HasWitness() && fRequireStandard && !IsWitnessStandard(tx, view))
             return state.DoS(0, false, REJECT_NONSTANDARD, "bad-witness-nonstandard", true);
 
         int64_t nSigOpsCost = GetTransactionSigOpCost(tx, view, STANDARD_SCRIPT_VERIFY_FLAGS);
@@ -881,7 +899,7 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
         }
 
         // No transactions are allowed below minRelayTxFee except from disconnected blocks
-        if (!bypass_limits && nModifiedFees < ::minRelayTxFee.GetFee(nSize)) {
+        if (txtype != TxTypeSSGen && !bypass_limits && nModifiedFees < ::minRelayTxFee.GetFee(nSize)) {
             return state.DoS(0, false, REJECT_INSUFFICIENTFEE, "min relay fee not met");
         }
 
@@ -1230,6 +1248,14 @@ bool GetTransaction(const uint256& hash, CTransactionRef& txOut, const Consensus
                     return true;
                 }
             }
+
+            for (const auto& stx : block.svtx) {
+                if (stx->GetHash() == hash) {
+                    txOut = stx;
+                    hashBlock = pindexSlow->GetBlockHash();
+                    return true;
+                }
+            }
         }
     }
 
@@ -1382,6 +1408,8 @@ bool ReadFromDisk(CMutableTransaction& tx, CDiskTxPos& txindex, CBlockTreeDB& tx
         return false;
     if (!ReadFromDisk(tx, txindex))
         return false;
+//    if (!ReadFromDisk(tx, txindex, prevout))	// due to add svtx, couldn't get the correctly tx, ypf
+//            return false;
     if (prevout.n >= tx.vout.size())
     {
         return false;
@@ -1586,10 +1614,17 @@ void CChainState::InvalidBlockFound(CBlockIndex *pindex, const CValidationState 
 
 void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, CTxUndo &txundo, int nHeight)
 {
+	CValidationStakeState stakestate;
+	TxType txtype = DetermineTxType(tx, stakestate);
+	uint32_t i = 0;
     // mark inputs spent
     if (!tx.IsCoinBase()) {
         txundo.vprevout.reserve(tx.vin.size());
         for (const CTxIn &txin : tx.vin) {
+        	if(txtype == TxTypeSSGen && i == 0)	{
+        		i++;
+        		continue;
+        	}
             txundo.vprevout.emplace_back();
             bool is_spent = inputs.SpendCoin(txin.prevout, &txundo.vprevout.back());
             assert(is_spent);
@@ -1677,7 +1712,10 @@ bool CheckInputs(const CTransaction& tx, CValidationState &state, const CCoinsVi
                 return true;
             }
 
-            for (unsigned int i = 0; i < tx.vin.size(); i++) {
+            CValidationStakeState stakestate;
+            TxType txtype = DetermineTxType(tx, stakestate);
+
+            for (unsigned int i = 0; txtype != TxTypeSSGen && i < tx.vin.size(); i++) {
                 const COutPoint &prevout = tx.vin[i].prevout;
                 const Coin& coin = inputs.AccessCoin(prevout);
                 assert(!coin.IsSpent());
@@ -1715,6 +1753,25 @@ bool CheckInputs(const CTransaction& tx, CValidationState &state, const CCoinsVi
                     // super-majority signaling has occurred.
                     return state.DoS(100,false, REJECT_INVALID, strprintf("mandatory-script-verify-flag-failed (%s)", ScriptErrorString(check.GetScriptError())));
                 }
+            }
+
+            // Verify ssgen signature
+            if(txtype == TxTypeSSGen && fTxIndex){
+               	CMutableTransaction txOut;
+				CDiskTxPos txindex;
+				COutPoint prevOut = tx.vin[1].prevout;
+				ReadFromDisk(txOut, txindex, *pblocktree, prevOut);
+                if (txOut.GetHash() != prevOut.hash)
+                	return state.Invalid(false, REJECT_INVALID, "txid-mismatch", "Get SSGen's previous sstx hash not match prevout.hash");
+
+				// Verify signature
+				CScriptCheck check(txOut.vout[prevOut.n], tx, 1, flags, cacheSigStore, &txdata);
+				if (pvChecks) {
+					pvChecks->push_back(CScriptCheck());
+					check.swap(pvChecks->back());
+				} else if (!check()) {
+					return state.DoS(100,false, REJECT_INVALID, strprintf("ssgen-mandatory-script-verify-flag-failed (%s)", ScriptErrorString(check.GetScriptError())));
+				}
             }
 
             if (cacheFullScriptStore && !pvChecks) {
@@ -1964,18 +2021,20 @@ static bool WriteTxIndexDataForBlock(const CBlock& block, CValidationState& stat
 {
     if (!fTxIndex) return true;
 
-    CDiskTxPos pos(pindex->GetBlockPos(), GetSizeOfCompactSize(block.vtx.size() + block.svtx.size()));
+    CDiskTxPos pos(pindex->GetBlockPos(), GetSizeOfCompactSize(block.vtx.size()));
     std::vector<std::pair<uint256, CDiskTxPos> > vPos;
-    vPos.reserve(block.vtx.size());
+    vPos.reserve(block.vtx.size() + block.svtx.size());
     for (const CTransactionRef& tx : block.vtx)
     {
-        vPos.push_back(std::make_pair(tx->GetHash(), pos));
+        vPos.emplace_back(std::make_pair(tx->GetHash(), pos));
         pos.nTxOffset += ::GetSerializeSize(*tx, SER_DISK, CLIENT_VERSION);
     }
 
+    pos.nTxOffset += GetSizeOfCompactSize(block.svtx.size());
+
     for (const CTransactionRef& stx : block.svtx)
     {
-        vPos.push_back(std::make_pair(stx->GetHash(), pos));
+        vPos.emplace_back(std::make_pair(stx->GetHash(), pos));
         pos.nTxOffset += ::GetSerializeSize(*stx, SER_DISK, CLIENT_VERSION);
     }
 
@@ -3484,6 +3543,11 @@ bool CChainState::ConnectBlockMock(const CBlock& block, const CBlock& parent, CV
         if (!tx.IsCoinBase())
         {
             CAmount txfee = 0;
+
+    		if(!CheckSSTxMature(tx, state, view, node->nHeight)){
+    			return error("%s: CheckSSTxMature: %s, %s", __func__, tx.GetHash().ToString(), FormatStateMessage(state));;
+    		}
+
             if (!Consensus::CheckTxInputs(tx, state, view, node->nHeight, txfee)) {
                 return error("%s: Consensus::CheckTxInputs: %s, %s", __func__, tx.GetHash().ToString(), FormatStateMessage(state));
             }
@@ -3520,7 +3584,7 @@ bool CChainState::ConnectBlockMock(const CBlock& block, const CBlock& parent, CV
 
         bool hasOpSpend = tx.HasOpSpend();
 
-        if (!tx.IsCoinBase())	// TODO modify, ypf
+        if (!tx.IsCoinBase())
         {
             if (tx.IsCoinStake())
                 nActualStakeReward = tx.GetValueOut()-view.GetValueIn(tx);
@@ -3694,31 +3758,40 @@ bool CChainState::ConnectBlockMock(const CBlock& block, const CBlock& parent, CV
     //////////////////////////////////////////////////////////////// decred
     for (unsigned int i = 0; i < block.svtx.size(); i++)
     {
-        const CTransaction &tx = *(block.svtx[i]);
+		const CTransaction &tx = *(block.svtx[i]);
+		CValidationStakeState stakestate;
+		TxType txtype = DetermineTxType(tx, stakestate);
 
         nInputs += tx.vin.size();
 
 		CAmount txfee = 0;
-		if (!Consensus::CheckTxInputs(tx, state, view, node->nHeight, txfee)) {
-			return error("%s: Consensus::CheckTxInputs: %s, %s", __func__, tx.GetHash().ToString(), FormatStateMessage(state));
-		}
-		nFees += txfee;
-		if (!MoneyRange(nFees)) {
-			return state.DoS(100, error("%s: accumulated fee in the block out of range.", __func__),
-							 REJECT_INVALID, "bad-txns-accumulated-fee-outofrange");
-		}
 
-		// Check that transaction is BIP68 final
-		// BIP68 lock checks (as opposed to nLockTime checks) must
-		// be in ConnectBlock because they require the UTXO set
-		prevheights.resize(tx.vin.size());
-		for (size_t j = 0; j < tx.vin.size(); j++) {
-			prevheights[j] = view.AccessCoin(tx.vin[j].prevout).nHeight;
-		}
+		if(txtype != TxTypeSSGen){
+			if(!CheckSSTxMature(tx, state, view, node->nHeight)){
+				return error("%s: CheckSSTxMature: %s, %s", __func__, tx.GetHash().ToString(), FormatStateMessage(state));;
+			}
 
-		if (!SequenceLocks(tx, nLockTimeFlags, &prevheights, *node)) {
-			return state.DoS(100, error("%s: contains a non-BIP68-final transaction", __func__),
-							 REJECT_INVALID, "bad-txns-nonfinal");
+			if (!Consensus::CheckTxInputs(tx, state, view, node->nHeight, txfee)) {
+				return error("%s: Consensus::CheckTxInputs: %s, %s", __func__, tx.GetHash().ToString(), FormatStateMessage(state));
+			}
+			nFees += txfee;
+			if (!MoneyRange(nFees)) {
+				return state.DoS(100, error("%s: accumulated fee in the block out of range.", __func__),
+								 REJECT_INVALID, "bad-txns-accumulated-fee-outofrange");
+			}
+
+			// Check that transaction is BIP68 final
+			// BIP68 lock checks (as opposed to nLockTime checks) must
+			// be in ConnectBlock because they require the UTXO set
+			prevheights.resize(tx.vin.size());
+			for (size_t j = 0; j < tx.vin.size(); j++) {
+				prevheights[j] = view.AccessCoin(tx.vin[j].prevout).nHeight;
+			}
+
+			if (!SequenceLocks(tx, nLockTimeFlags, &prevheights, *node)) {
+				return state.DoS(100, error("%s: contains a non-BIP68-final transaction", __func__),
+								 REJECT_INVALID, "bad-txns-nonfinal");
+			}
 		}
 
         // GetTransactionSigOpCost counts 3 types of sigops:
@@ -5186,9 +5259,9 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
 	if(TestStxDebug && fCheckMerkleRoot && chainActive.Tip() && chainActive.Tip()->nHeight >= consensusParams.StakeValidationHeight - 1){
 		uint16_t ssgenNum = 0;
 		for(auto stx : block.svtx){
-		CValidationStakeState stakestate;
+			CValidationStakeState stakestate;
 			if(IsSSGen(*stx, stakestate)){
-			if(!CheckSSGenVote(block, *stx)){
+				if(!CheckSSGenVote(block, *stx)){
 					return state.DoS(100, false, REJECT_INVALID, "bad-ssgen-vote", false, "ssgen voted block is not the previous block.");
 				}
 				ssgenNum++;
@@ -6028,6 +6101,21 @@ static void FindFilesToPrune(std::set<int>& setFilesToPrune, uint64_t nPruneAfte
            nPruneTarget/1024/1024, nCurrentUsage/1024/1024,
            ((int64_t)nPruneTarget - (int64_t)nCurrentUsage)/1024/1024,
            nLastBlockWeCanPrune, count);
+}
+
+bool CheckSSTxMature(const CTransaction tx, CValidationState& state, const CCoinsViewCache& inputs, int nSpendHeight){
+    for (unsigned int i = 0; i < tx.vin.size(); ++i) {
+        const COutPoint &prevout = tx.vin[i].prevout;
+        const Coin& coin = inputs.AccessCoin(prevout);
+        assert(!coin.IsSpent());
+        const Consensus::Params& consensus = Params().GetConsensus();
+        uint32_t expire_mature = consensus.TicketExpiry + (uint32_t)consensus.TicketMaturity;
+        if(coin.out.scriptPubKey.HasOpSSTX() && (uint32_t)nSpendHeight - coin.nHeight < expire_mature)
+        	return state.Invalid(false, REJECT_INVALID, "bad-inputs",
+        			strprintf("tried to spend coinbase at depth %d, less than expired ticket expire + mature: %d", nSpendHeight - coin.nHeight, expire_mature));
+    }
+
+    return true;
 }
 
 bool CheckDiskSpace(uint64_t nAdditionalBytes)

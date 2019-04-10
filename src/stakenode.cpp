@@ -185,4 +185,3 @@ bool fetchStakeNode(const Consensus::Params& consensusParams, CBlockIndex* node,
 	return true;
 }
 
-

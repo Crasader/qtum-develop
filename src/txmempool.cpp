@@ -385,8 +385,13 @@ bool CTxMemPool::addUnchecked(const uint256& hash, const CTxMemPoolEntry &entry,
     cachedInnerUsage += entry.DynamicMemoryUsage();
 
     const CTransaction& tx = newit->GetTx();
+    CValidationStakeState stakestate;
+	TxType txtype = DetermineTxType(tx, stakestate);
     std::set<uint256> setParentTransactions;
     for (unsigned int i = 0; i < tx.vin.size(); i++) {
+    	if(txtype == TxTypeSSGen && i == 0){
+    		continue;
+    	}
         mapNextTx.insert(std::make_pair(&tx.vin[i].prevout, &tx));
         setParentTransactions.insert(tx.vin[i].prevout.hash);
     }
@@ -612,6 +617,7 @@ static void CheckInputsAndUpdateCoins(const CTransaction& tx, CCoinsViewCache& m
 {
     CValidationState state;
     CAmount txfee = 0;
+    CValidationStakeState stakestate;
     bool fCheckResult = tx.IsCoinBase() || Consensus::CheckTxInputs(tx, state, mempoolDuplicate, spendheight, txfee);
     assert(fCheckResult);
     UpdateCoins(tx, mempoolDuplicate, 1000000);
@@ -648,6 +654,10 @@ void CTxMemPool::check(const CCoinsViewCache *pcoins) const
         setEntries setParentCheck;
         int64_t parentSizes = 0;
         int64_t parentSigOpCost = 0;
+
+        CValidationStakeState stakestate;
+        TxType txtype = DetermineTxType(tx, stakestate);
+
         for (const CTxIn &txin : tx.vin) {
             // Check that every mempool transaction's inputs refer to available coins, or other mempool tx's.
             indexed_transaction_set::const_iterator it2 = mapTx.find(txin.prevout.hash);
@@ -659,10 +669,14 @@ void CTxMemPool::check(const CCoinsViewCache *pcoins) const
                     parentSizes += it2->GetTxSize();
                     parentSigOpCost += it2->GetSigOpCost();
                 }
-            } else {
+            } else if(txtype != TxTypeSSGen){
                 assert(pcoins->HaveCoin(txin.prevout));
             }
             // Check whether its inputs are marked in mapNextTx.
+            if(txtype == TxTypeSSGen && i == 0){
+            	i++;
+            	continue;
+            }
             auto it3 = mapNextTx.find(txin.prevout);
             assert(it3 != mapNextTx.end());
             assert(it3->first == &txin.prevout);

@@ -10,6 +10,8 @@
 #include <script/standard.h>
 #include <consensus/validation.h>
 
+#include <stake/staketx.h>
+
 // TODO remove the following dependencies
 #include <chain.h>
 #include <coins.h>
@@ -140,7 +142,10 @@ int64_t GetTransactionSigOpCost(const CTransaction& tx, const CCoinsViewCache& i
 {
     int64_t nSigOps = GetLegacySigOpCount(tx) * WITNESS_SCALE_FACTOR;
 
-    if (tx.IsCoinBase())	// TODO modify, ypf
+    CValidationStakeState stakestate;
+    TxType txtype = DetermineTxType(tx, stakestate);
+
+    if (tx.IsCoinBase() || txtype == TxTypeSSGen)	// TODO modify, ypf
         return nSigOps;
 
     if (flags & SCRIPT_VERIFY_P2SH) {
@@ -227,11 +232,15 @@ bool Consensus::CheckTxInputs(const CTransaction& tx, CValidationState& state, c
                          strprintf("%s: inputs missing/spent", __func__));
     }
 
+	CValidationStakeState stakestate;
+	TxType txtype = DetermineTxType(tx, stakestate);
+
     CAmount nValueIn = 0;
     for (unsigned int i = 0; i < tx.vin.size(); ++i) {
+    	if(txtype == TxTypeSSGen && i == 0) continue;
         const COutPoint &prevout = tx.vin[i].prevout;
         const Coin& coin = inputs.AccessCoin(prevout);
-        assert(!coin.IsSpent());	// TODO, due to error temporarily delete it, ypf
+        assert(!coin.IsSpent());
 
         // If prev is coinbase, check that it's matured
         if ((coin.IsCoinBase() || coin.IsCoinStake()) && nSpendHeight - coin.nHeight < COINBASE_MATURITY) {

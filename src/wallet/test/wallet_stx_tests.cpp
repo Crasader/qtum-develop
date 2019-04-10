@@ -330,12 +330,14 @@ BOOST_AUTO_TEST_CASE(wallet_stx_vote_block)	// test many txs use one utxo
     BOOST_CHECK_EQUAL(boost::get<CKeyID>(list.begin()->first).ToString(), coinbaseAddress);
     BOOST_CHECK_EQUAL(list.begin()->second.size(), 13);
 
-    CBlockIndex* preIndex = chainActive.Tip();	// before create ssgen
-    addSSGen();
-    CBlockIndex* lastIndex = chainActive.Tip();
-    std::vector<uint256> preWinners = preIndex->stakeNode->Winners();
-    for(auto preWinner : preWinners){
-    	BOOST_CHECK(!lastIndex->stakeNode->ExistsLiveTicket(preWinner));
+    for(uint16_t voteNum = 0; voteNum < 5; voteNum++){
+        CBlockIndex* preIndex = chainActive.Tip();	// before create ssgen
+        addSSGen();
+        CBlockIndex* lastIndex = chainActive.Tip();
+        std::vector<uint256> preWinners = preIndex->stakeNode->Winners();
+        for(auto preWinner : preWinners){
+        	BOOST_CHECK(!lastIndex->stakeNode->ExistsLiveTicket(preWinner));
+        }
     }
 }
 

@@ -43,5 +43,4 @@ bool maybeFetchTicketInfo(const Consensus::Params& consensusParams, CBlockIndex*
 bool fetchStakeNode(const Consensus::Params& consensusParams, CBlockIndex* node, std::shared_ptr<TicketNode> stakeNode);
 
 
-
 #endif /* BITCOIN_STAKENODE_H_ */

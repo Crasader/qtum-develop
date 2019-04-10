@@ -25,6 +25,10 @@ const uint16_t FINAL_STATE_NUM = 6;
 
 class TicketNode;
 
+bool safeGet(Immutable& imu, uint256& hash, uint32_t*& pheight, uint8_t*& pflag);
+bool safePut(Immutable& imu, uint256& hash, uint32_t& height, uint8_t& flag);
+bool safeDelete(Immutable& imu, uint256& hash);
+
 // Node is in-memory stake data for a node.  It contains a list of database
 // updates to be written in the case that the block is inserted in the main
 // chain database.  Because of its use of immutable treap data structures, it
@@ -125,6 +129,11 @@ public:
 		return missedTickets.Has(hash);
 	}
 
+	// DeleteMissedTicketSpended returns whether or not a ticket delete from missedTickets
+	bool DeleteMissedTicketSpended(uint256& hash){
+		return safeDelete(missedTickets, hash);
+	}
+
 	// MissedTickets returns the list of missed tickets for this stake node.
 	bool MissedTickets(TicketHashes& hashes){
 		missedTickets.ForEach(hashes);
@@ -223,9 +232,6 @@ private:
 
 bool InitDatabaseState(const Consensus::Params& params, TicketNode& node);
 bool LoadBestNode(uint32_t height, uint256& blockhash, CBlockHeader& header, const Consensus::Params params, TicketNode& node);
-bool safeGet(Immutable& imu, uint256& hash, uint32_t*& pheight, uint8_t*& pflag);
-bool safePut(Immutable& imu, uint256& hash, uint32_t& height, uint8_t& flag);
-bool safeDelete(Immutable& imu, uint256& hash);
 bool connectNode(TicketNode& node, uint256 lotteryIV, TicketHashes& ticketsVoted, TicketHashes& revokedTickets, TicketHashes& newTickets, TicketNode& nodeOut);
 bool disconnectNode(TicketNode& node, uint256 parentLotteryIV, std::vector<UndoTicketData>& parentUtds, TicketHashes& parentTickets, TicketNode& nodeOut);
 bool WriteConnectedBestNode(TicketNode& node, const uint256& hash);

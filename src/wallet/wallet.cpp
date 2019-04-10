@@ -33,6 +33,7 @@
 
 #include <wallet/test/wallet_stx_def.h>
 #include <stake/staketx.h>
+#include <stake/tickets.h>
 
 #include <assert.h>
 #include <future>
@@ -2765,7 +2766,7 @@ void CWallet::AvailableCoins(std::vector<COutput> &vCoins, bool fOnlySafe, const
     }
 
     //////////////////////////////////////////////////////////////// decred
-    {
+    {		// TODO, make sstx correctlyly enter in  vCoins, except spent tx
         LOCK2(cs_main, cs_wallet);
 
         CAmount nTotal = 0;
@@ -2775,6 +2776,7 @@ void CWallet::AvailableCoins(std::vector<COutput> &vCoins, bool fOnlySafe, const
         	CValidationStakeState stxstate;
             const uint256& stxid = entry.first;
             const CWalletTx* pscoin = &entry.second;
+            CBlockIndex* preIndex = chainActive.Tip();
 
 //            TxType txtype = DetermineTxType(*pscoin->tx, stxstate);
 
@@ -2809,7 +2811,8 @@ void CWallet::AvailableCoins(std::vector<COutput> &vCoins, bool fOnlySafe, const
                     continue;
 
                 // wipe off
-                if(scriptPubKeyStx.HasOpReturnB() || (scriptPubKeyStx.HasOpSSTX() && (uint32_t)nDepth < (Params().GetConsensus().TicketExpiry) + (uint32_t)Params().GetConsensus().TicketMaturity))
+                if(scriptPubKeyStx.HasOpReturnB() || (scriptPubKeyStx.HasOpSSTX() &&
+                		((uint32_t)nDepth < (Params().GetConsensus().TicketExpiry + (uint32_t)Params().GetConsensus().TicketMaturity) || !preIndex->stakeNode->ExistsMissedTicket(const_cast<uint256&>(pscoin->tx->GetHash())))))
                 	continue;
 
                 if (IsLockedCoin(entry.first, i))
@@ -3725,6 +3728,18 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CWalletT
             }
         }
 
+//        // check tx's vin whether use sstx expired, if so change the sstx status and remove it from missedTicket	TODO move to connectblock
+//        for (const auto& coin : vCoins){
+//        	uint256& txHash = coin.outpoint.hash;
+//        	CBlockIndex* preIndex = chainActive.Tip();
+//        	if(preIndex->stakeNode->ExistsMissedTicket(txHash)){
+//            	if(preIndex->stakeNode->DeleteMissedTicketSpended(txHash) == false){
+//            		strFailReason = _("delete ticket from missedTickets failed");
+//            		return false;
+//            	}
+//        	}
+//        }
+
         // Embed the constructed transaction data in wtxNew.
         wtxNew.SetTx(MakeTransactionRef(std::move(txNew)));
 
@@ -3970,6 +3985,18 @@ bool CWallet::CreateTicketPurchaseTx(CWalletTx& wtxNew, CAmount& ticketPrice, CA
                 }
             }
 
+//            // check tx's vin whether use sstx expired, if so change the sstx status and remove it from missedTicket	TODO move to connectblock
+//            for (const auto& coin : vCoins){
+//            	uint256& txHash = coin.outpoint.hash;
+//            	CBlockIndex* preIndex = chainActive.Tip();
+//            	if(preIndex->stakeNode->ExistsMissedTicket(txHash)){
+//                	if(preIndex->stakeNode->DeleteMissedTicketSpended(txHash) == false){
+//                		strFailReason = _("delete ticket from missedTickets failed");
+//                		return false;
+//                	}
+//            	}
+//            }
+
             // Embed the constructed transaction data in wtxNew.
             wtxNew.SetTx(MakeTransactionRef(std::move(txNew)));
 
@@ -4030,24 +4057,25 @@ bool CWallet::CreateVoteTx(CWalletTx& wtxNew, CBlockIndex* voteBlock, const CTra
 	uint256 ticketHash = ticketTx.GetHash();
 	const uint32_t nSequence = CTxIn::SEQUENCE_FINAL;
 	txNew.vin.push_back(CTxIn(COutPoint(uint256(), CTxIn::MaxPrevOutIndex), consensusParams.StakeBaseSigScript, nSequence));
+	txNew.vin.push_back(CTxIn(COutPoint(ticketHash, 0), CScript(), nSequence));
+
+	txNew.vout.push_back(CTxOut(0, blockScript));
+	txNew.vout.push_back(CTxOut(0, voteScript));
+	txNew.vout.push_back(CTxOut(voteSubsidy + ticketPrice, stakeGenScript));
 
     if (sign)
     {
         CTransaction txNewConst(txNew);
 		SignatureData sigdata;
 
-		if (!ProduceSignature(TransactionSignatureCreator(this, &txNewConst, 0, ticketPrice, SIGHASH_ALL), senderScript, sigdata))
+		if (!ProduceSignature(TransactionSignatureCreator(this, &txNewConst, 1, ticketPrice, SIGHASH_ALL), senderScript, sigdata))
 		{
 			strFailReason = _("Signing transaction failed");
 			return false;
 		} else {
-			txNew.vin.push_back(CTxIn(COutPoint(ticketHash, 0), sigdata.scriptSig, nSequence));
+			UpdateTransaction(txNew, 1, sigdata);
 		}
     }
-
-	txNew.vout.push_back(CTxOut(0, blockScript));
-	txNew.vout.push_back(CTxOut(0, voteScript));
-	txNew.vout.push_back(CTxOut(voteSubsidy + ticketPrice, stakeGenScript));
 
     // Embed the constructed transaction data in wtxNew.
     wtxNew.SetTx(MakeTransactionRef(std::move(txNew)));
