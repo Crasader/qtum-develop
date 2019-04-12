@@ -339,6 +339,31 @@ BOOST_AUTO_TEST_CASE(wallet_stx_vote_block)	// test many txs use one utxo
         	BOOST_CHECK(!lastIndex->stakeNode->ExistsLiveTicket(preWinner));
         }
     }
+
+    list = wallet->ListCoins();
+    BOOST_CHECK_EQUAL(list.size(), 1);
+    BOOST_CHECK_EQUAL(boost::get<CKeyID>(list.begin()->first).ToString(), coinbaseAddress);
+    BOOST_CHECK_EQUAL(list.begin()->second.size(), 18);
+
+    // Lock both coins. Confirm number of available coins drops to 0.
+    std::vector<COutput> available;
+    wallet->AvailableCoins(available);
+    BOOST_CHECK_EQUAL(available.size(), 43);
+    for (const auto& group : list) {
+        for (const auto& coin : group.second) {
+            LOCK(wallet->cs_wallet);
+            wallet->LockCoin(COutPoint(coin.tx->GetHash(), coin.i));
+        }
+    }
+    wallet->AvailableCoins(available);
+    BOOST_CHECK_EQUAL(available.size(), 25);
+
+    // Confirm ListCoins still returns same result as before, despite coins
+    // being locked.
+    list = wallet->ListCoins();
+    BOOST_CHECK_EQUAL(list.size(), 1);
+    BOOST_CHECK_EQUAL(boost::get<CKeyID>(list.begin()->first).ToString(), coinbaseAddress);
+    BOOST_CHECK_EQUAL(list.begin()->second.size(), 18);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
