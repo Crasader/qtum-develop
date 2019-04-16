@@ -25,7 +25,7 @@ bool InitDatabaseState(const Consensus::Params& params, TicketNode& node){
 
 	// Write the new block undo and new tickets data to the
 	// database for the genesis block.
-	pdbinfoview->writeUndoTicketData(node.height, node.databaseUndoUpdate);	// TODO
+	pdbinfoview->writeUndoTicketData(node.height, node.databaseUndoUpdate);
 
 	pdbinfoview->writeTicketHashes(node.height, node.databaseBlockTickets);
 

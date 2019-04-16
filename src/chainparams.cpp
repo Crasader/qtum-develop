@@ -60,7 +60,7 @@ static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesi
  */
 static CBlock CreateGenesisBlock(uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward)
 {
-    const char* pszTimestamp = "Sep 02, 2017 Bitcoin breaks $5,000 in latest price frenzy";
+    const char* pszTimestamp = "Apil 16, 2019 Test Qtum fork";
     const CScript genesisOutputScript = CScript() << ParseHex("040d61d8653448c98731ee5fffd303c15e71ec2057b77f11ab3601979728cdaff2d68afbba14e4fa0bc44f2072b0b23ef63717f8cdfbe58dcd33f32b6afe98741a") << OP_CHECKSIG;
     return CreateGenesisBlock(pszTimestamp, genesisOutputScript, nTime, nNonce, nBits, nVersion, genesisReward);
 }
@@ -89,7 +89,7 @@ public:
         consensus.nSubsidyHalvingInterval = 985500; // qtum halving every 4 years
         consensus.BIP16Height = 0;
         consensus.BIP34Height = 0;
-        consensus.BIP34Hash = uint256S("0x000075aef83cf2853580f8ae8ce6f8c3096cfa21d98334d6e3f95e5582ed986c");
+        consensus.BIP34Hash =uint256S("0x000075aef83cf2853580f8ae8ce6f8c3096cfa21d98334d6e3f95e5582ed986c");
         consensus.BIP65Height = 0; // 000000000000000004c2b624ed5d7756c508d90fd0da2c7c679febfa6c4735f0
         consensus.BIP66Height = 0; // 00000000000000000379eaa19dce8c9b722d46ae6a57c2f1a988119488b50931
         consensus.powLimit = uint256S("0000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
@@ -130,7 +130,7 @@ public:
         pchMessageStart[1] = 0xcf;
         pchMessageStart[2] = 0xa6;
         pchMessageStart[3] = 0xd3;
-        nDefaultPort = 3888;
+        nDefaultPort = 3899;
         nPruneAfterHeight = 100000;
 
 //        uint32_t nonce = 0;
@@ -140,18 +140,18 @@ public:
 //        bnTarget.SetCompact(0x1f00ffff, &fNegative, &fOverflow);
 //        do{
 //            if(TestStxDebug){
-//            	genesis = CreateGenesisBlock(1504695029, nonce, 0x1f00ffff, 1, 50 * COIN);
+//            	genesis = CreateGenesisBlock(1555398487, nonce, 0x1f00ffff, 1, 50 * COIN);
 //            } else {
-//            	genesis = CreateGenesisBlock(1504695029, 8026361, 0x1f00ffff, 1, 50 * COIN);
+//            	genesis = CreateGenesisBlock(1555398487, nonce, 0x1f00ffff, 1, 50 * COIN);
 //            }
 //			consensus.hashGenesisBlock = genesis.GetHash();
 //			nonce++;
 //		}while(UintToArith256(consensus.hashGenesisBlock) > bnTarget);
 
         if(TestStxDebug){
-        	genesis = CreateGenesisBlock(1504695029, 30048, 0x1f00ffff, 1, 50 * COIN);
+        	genesis = CreateGenesisBlock(1555398487, 0x1be39, 0x1f00ffff, 1, 50 * COIN);
         } else {
-        	genesis = CreateGenesisBlock(1504695029, 8026361, 0x1f00ffff, 1, 50 * COIN);
+        	genesis = CreateGenesisBlock(1555398487, 0x3e94, 0x1f00ffff, 1, 50 * COIN);
         }
 		consensus.hashGenesisBlock = genesis.GetHash();
 
@@ -280,11 +280,33 @@ public:
         pchMessageStart[1] = 0x22;
         pchMessageStart[2] = 0x15;
         pchMessageStart[3] = 0x06;
-        nDefaultPort = 13888;
+        nDefaultPort = 13899;
         nPruneAfterHeight = 1000;
 
-        genesis = CreateGenesisBlock(1504695029, 7349697, 0x1f00ffff, 1, 50 * COIN);
-        consensus.hashGenesisBlock = genesis.GetHash();
+//        uint32_t nonce = 0;
+//        bool fNegative;
+//        bool fOverflow;
+//        arith_uint256 bnTarget;
+//        bnTarget.SetCompact(0x1f00ffff, &fNegative, &fOverflow);
+//        do{
+//            if(TestStxDebug){
+//            	genesis = CreateGenesisBlock(1555398487, nonce, 0x1f00ffff, 1, 50 * COIN);
+//            } else {
+//            	genesis = CreateGenesisBlock(1555398487, nonce, 0x1f00ffff, 1, 50 * COIN);
+//            }
+//			consensus.hashGenesisBlock = genesis.GetHash();
+//			nonce++;
+//		}while(UintToArith256(consensus.hashGenesisBlock) > bnTarget);
+
+        if(TestStxDebug){
+        	genesis = CreateGenesisBlock(1555398487, 0x1be39, 0x1f00ffff, 1, 50 * COIN);
+        } else {
+        	genesis = CreateGenesisBlock(1555398487, 0x3e94, 0x1f00ffff, 1, 50 * COIN);
+        }
+		consensus.hashGenesisBlock = genesis.GetHash();
+
+
+
 //        assert(consensus.hashGenesisBlock == uint256S("0x0000e803ee215c0684ca0d2f9220594d3f828617972aad66feb2ba51f5e14222"));
 //        assert(genesis.hashMerkleRoot == uint256S("0xed34050eb5909ee535fcb07af292ea55f3d2f291187617b44d3282231405b96d"));
 
@@ -401,13 +423,28 @@ public:
         pchMessageStart[1] = 0xdd;
         pchMessageStart[2] = 0xc6;
         pchMessageStart[3] = 0xe1;
-        nDefaultPort = 23888;
+        nDefaultPort = 23899;
         nPruneAfterHeight = 1000;
 
+//        uint32_t nonce = 0;
+//        bool fNegative;
+//        bool fOverflow;
+//        arith_uint256 bnTarget;
+//        bnTarget.SetCompact(0x207fffff, &fNegative, &fOverflow);
+//        do{
+//            if(TestStxDebug){
+//            	genesis = CreateGenesisBlock(1555398487, nonce, 0x207fffff, 1, 50 * COIN);
+//            } else {
+//            	genesis = CreateGenesisBlock(1555398487, nonce, 0x207fffff, 1, 50 * COIN);
+//            }
+//			consensus.hashGenesisBlock = genesis.GetHash();
+//			nonce++;
+//		}while(UintToArith256(consensus.hashGenesisBlock) > bnTarget);
+
 		if(TestStxDebug){
-			genesis = CreateGenesisBlock(1504695029, 22, 0x207fffff, 1, 50 * COIN);
+			genesis = CreateGenesisBlock(1504695029, 0, 0x207fffff, 1, 50 * COIN);
 		} else {
-			genesis = CreateGenesisBlock(1504695029, 17, 0x207fffff, 1, 50 * COIN);
+			genesis = CreateGenesisBlock(1504695029, 0, 0x207fffff, 1, 50 * COIN);
 		}
 
 		consensus.hashGenesisBlock = genesis.GetHash();

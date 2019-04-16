@@ -95,6 +95,8 @@ class BitcoinTestFramework():
                           help="Attach a python debugger if test fails")
         parser.add_option("--usecli", dest="usecli", default=False, action="store_true",
                           help="use bitcoin-cli instead of RPC for all commands")
+        parser.add_option("--teststxdebug", dest="teststxdebug", default=False, action="store_true",
+                          help="Change to stx debug mode")
         self.add_options(parser)
         (self.options, self.args) = parser.parse_args()
 

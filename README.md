@@ -12,8 +12,10 @@ At now qtum pows finish
 1. [stake api](https://github.com/901d/qtum-develop/tree/pow-pos-develop/src/stake), [stake api unit test](https://github.com/901d/qtum-develop/blob/pow-pos-develop/src/test/stake_tests.cpp) & [stake db api unit test](https://github.com/901d/qtum-develop/blob/pow-pos-develop/src/test/stakedb_tests.cpp). Stake is about how to manager ticket pruchase tx(sstx), vote block tx(ssgen) and ticket revoke tx(ssrtx), produce prng seed, produce winner tickets...
 2. Create pruchase tx(sstx), vote block tx(ssgen) and ticket revoke tx(ssrtx) api...
 3. Block struct add svtx member used to store sstx, ssgen & ssrx, wallet add stx class like normal tx class.
-4. Test above function [unit test](https://github.com/901d/qtum-develop/blob/pow-pos-develop/src/wallet/test/wallet_stx_tests.cpp)  
+4. Test above function [unit test](https://github.com/901d/qtum-develop/blob/pow-pos-develop/src/wallet/test/wallet_stx_tests.cpp) 
+5. Add Ticket Purchase rpc: createticketpurchase.
+6. Add rpc ut: wallet/test/rpc_stx_tests.
 
-**how to run unit test**, click [this](https://github.com/901d/qtum-develop/tree/pow-pos-develop/src/test/README.md).  
+**how to run unit test**, click [this](https://github.com/901d/qtum-develop/tree/pow-pos-develop/src/test/README.md).
 
 *I will continue develop this project by my spare time*

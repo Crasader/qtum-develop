@@ -621,7 +621,7 @@ fs::path GetDefaultDataDir()
     // Unix: ~/.qtum
 #ifdef WIN32
     // Windows
-    return GetSpecialFolderPath(CSIDL_APPDATA) / "Qtum";
+    return GetSpecialFolderPath(CSIDL_APPDATA) / "QtumStx";
 #else
     fs::path pathRet;
     char* pszHome = getenv("HOME");
@@ -631,10 +631,10 @@ fs::path GetDefaultDataDir()
         pathRet = fs::path(pszHome);
 #ifdef MAC_OSX
     // Mac
-    return pathRet / "Library/Application Support/Qtum";
+    return pathRet / "Library/Application Support/Qtum Stx";
 #else
     // Unix
-    return pathRet / ".qtum";
+    return pathRet / ".qtumstx";
 #endif
 #endif
 }

@@ -3985,18 +3985,6 @@ bool CWallet::CreateTicketPurchaseTx(CWalletTx& wtxNew, CAmount& ticketPrice, CA
                 }
             }
 
-//            // check tx's vin whether use sstx expired, if so change the sstx status and remove it from missedTicket	TODO move to connectblock
-//            for (const auto& coin : vCoins){
-//            	uint256& txHash = coin.outpoint.hash;
-//            	CBlockIndex* preIndex = chainActive.Tip();
-//            	if(preIndex->stakeNode->ExistsMissedTicket(txHash)){
-//                	if(preIndex->stakeNode->DeleteMissedTicketSpended(txHash) == false){
-//                		strFailReason = _("delete ticket from missedTickets failed");
-//                		return false;
-//                	}
-//            	}
-//            }
-
             // Embed the constructed transaction data in wtxNew.
             wtxNew.SetTx(MakeTransactionRef(std::move(txNew)));
 

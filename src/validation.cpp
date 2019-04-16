@@ -3533,6 +3533,7 @@ bool CChainState::ConnectBlockMock(const CBlock& block, const CBlock& parent, CV
 
     uint64_t nValueOut=0;
     uint64_t nValueIn=0;
+    std::vector<uint256> vchMissedStx;
 
     for (unsigned int i = 0; i < block.vtx.size(); i++)
     {
@@ -3598,6 +3599,10 @@ bool CChainState::ConnectBlockMock(const CBlock& block, const CBlock& parent, CV
             control.Add(vChecks);
 
             for(const CTxIn& j : tx.vin){
+            	uint256& prevHash = const_cast<uint256&>(j.prevout.hash);
+        		if(node->stakeNode->ExistsMissedTicket(prevHash)){
+        			vchMissedStx.push_back(prevHash);
+        		}
                 if(!j.scriptSig.HasOpSpend()){
                     const CTxOut& prevout = view.AccessCoin(j.prevout).out;
                     if((prevout.scriptPubKey.HasOpCreate() || prevout.scriptPubKey.HasOpCall())){
@@ -3816,6 +3821,10 @@ bool CChainState::ConnectBlockMock(const CBlock& block, const CBlock& parent, CV
 		control.Add(vChecks);
 
 		for(const CTxIn& j : tx.vin){
+        	uint256 prevHash = const_cast<uint256&>(j.prevout.hash);
+    		if(node->stakeNode->ExistsMissedTicket(prevHash)){
+    			vchMissedStx.push_back(prevHash);
+    		}
 			if(!j.scriptSig.HasOpSpend()){
 				const CTxOut& prevout = view.AccessCoin(j.prevout).out;
 				if((prevout.scriptPubKey.HasOpCreate() || prevout.scriptPubKey.HasOpCall())){
@@ -3836,6 +3845,7 @@ bool CChainState::ConnectBlockMock(const CBlock& block, const CBlock& parent, CV
         }
         UpdateCoins(tx, view, i == 0 ? undoDummy : blockundo.vtxundo.back(), node->nHeight);
     }
+
     ////////////////////////////////////////////////////////////////
 
     int64_t nTime3 = GetTimeMicros(); nTimeConnect += nTime3 - nTime2;
@@ -3968,6 +3978,13 @@ bool CChainState::ConnectBlockMock(const CBlock& block, const CBlock& parent, CV
 
     if (!WriteTxIndexDataForBlock(block, state, node))
         return false;
+
+	// check tx's vin whether use sstx expired, if so change the sstx status and remove it from missedTicket	TODO move to connectblock
+	for (auto& txHash : vchMissedStx){
+		if(node->stakeNode->DeleteMissedTicketSpended(txHash) == false){
+			return false;
+		}
+	}
 
     assert(node->phashBlock);
     // add this block to the view's block chain
