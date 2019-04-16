@@ -29,6 +29,8 @@
 #include <wallet/walletdb.h>
 #include <wallet/walletutil.h>
 
+#include <pos.h>
+
 #include <init.h>  // For StartShutdown
 
 #include <stdint.h>
@@ -451,6 +453,49 @@ static void SendMoney(CWallet * const pwallet, const CTxDestination &address, CA
     }
 }
 
+static void BuyTicket(CWallet * const pwallet, CWalletTx& wtxNew, const CCoinControl& coin_control, bool hasSender)
+{
+    CAmount curBalance = pwallet->GetBalance();
+
+	int64_t nextStakeDiff;
+	const CBlockIndex* prevIndex = chainActive.Tip();
+	const CChainParams chainparams = Params();
+	estimateNextStakeDifficultyV2(chainparams.GetConsensus(), prevIndex, nextStakeDiff);
+
+    // Check amount
+    if (nextStakeDiff <= 0)
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid amount");
+
+    if (nextStakeDiff > curBalance)
+        throw JSONRPCError(RPC_WALLET_INSUFFICIENT_FUNDS, "Insufficient funds");
+
+    if (pwallet->GetBroadcastTransactions() && !g_connman) {
+        throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
+    }
+
+    if (fWalletUnlockStakingOnly)
+    {
+        std::string strError = _("Error: Wallet unlocked for staking only, unable to create transaction.");
+        throw JSONRPCError(RPC_WALLET_ERROR, strError);
+    }
+
+    // Create and send the transaction
+    CReserveKey reservekey(pwallet);
+    CAmount nFeeRequired;
+    std::string strError;
+    std::vector<CRecipient> vecSend;
+    if(!pwallet->CreateTicketPurchaseTx(wtxNew, nextStakeDiff, nFeeRequired, strError, coin_control, true, hasSender)){
+        if (nextStakeDiff + nFeeRequired > curBalance)
+            strError = strprintf("Error: This purchase ticket tx requires a transaction fee of at least %s", FormatMoney(nFeeRequired));
+        throw JSONRPCError(RPC_WALLET_ERROR, strError);
+    }
+    CValidationState state;
+    if (!pwallet->CommitTransaction(wtxNew, reservekey, g_connman.get(), state)) {
+        strError = strprintf("Error: This purchase ticket tx was rejected! Reason given: %s", state.GetRejectReason());
+        throw JSONRPCError(RPC_WALLET_ERROR, strError);
+    }
+}
+
 UniValue sendtoaddress(const JSONRPCRequest& request)
 {
     CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
@@ -554,41 +599,142 @@ UniValue sendtoaddress(const JSONRPCRequest& request)
     }
 
     if(fHasSender){
-    //find a UTXO with sender address
+		//find a UTXO with sender address
 
-     UniValue results(UniValue::VARR);
-     std::vector<COutput> vecOutputs;
+		 UniValue results(UniValue::VARR);
+		 std::vector<COutput> vecOutputs;
 
-     coin_control.fAllowOtherInputs=true;
+		 coin_control.fAllowOtherInputs=true;
 
-     assert(pwallet != NULL);
-     pwallet->AvailableCoins(vecOutputs, false, NULL, true);
+		 assert(pwallet != NULL);
+		 pwallet->AvailableCoins(vecOutputs, false, NULL, true);
 
-     for(const COutput& out : vecOutputs) {
-         CTxDestination destAdress;
-         const CScript& scriptPubKey = out.tx->tx->vout[out.i].scriptPubKey;
-         bool fValidAddress = ExtractDestination(scriptPubKey, destAdress);
+		 for(const COutput& out : vecOutputs) {
+			 CTxDestination destAdress;
+			 const CScript& scriptPubKey = out.tx->tx->vout[out.i].scriptPubKey;
+			 bool fValidAddress = ExtractDestination(scriptPubKey, destAdress);
 
-         if (!fValidAddress || senderAddress != destAdress)
-             continue;
+			 if (!fValidAddress || senderAddress != destAdress)
+				 continue;
 
-         coin_control.Select(COutPoint(out.tx->GetHash(),out.i));
+			 coin_control.Select(COutPoint(out.tx->GetHash(),out.i));
 
-         break;
+			 break;
 
-     }
+		 }
 
-        if(!coin_control.HasSelected()){
-            throw JSONRPCError(RPC_TYPE_ERROR, "Sender address does not have any unspent outputs");
-        }
-        if(fChangeToSender){
-            coin_control.destChange=senderAddress;
-        }
+			if(!coin_control.HasSelected()){
+				throw JSONRPCError(RPC_TYPE_ERROR, "Sender address does not have any unspent outputs");
+			}
+			if(fChangeToSender){
+				coin_control.destChange=senderAddress;
+			}
     }
 
     EnsureWalletIsUnlocked(pwallet);
 
     SendMoney(pwallet, dest, nAmount, fSubtractFeeFromAmount, wtx, coin_control, fHasSender);
+
+    return wtx.GetHash().GetHex();
+}
+
+UniValue createticketpurchase(const JSONRPCRequest& request){
+    CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
+        return NullUniValue;
+    }
+
+    if (request.fHelp || request.params.size() > 4)
+        throw std::runtime_error(
+            "createticketpurchase\n"
+            "Returns whether purchase ticket success or not.\n"
+            "For purchase new ticket, use \"createticketpurchase\" (\"estimate_mode\" \"comment\" \"comment_to\" \"senderaddress\")\n"
+			+ HelpRequiringPassphrase(pwallet) +
+			"\nArguments:\n"
+            "1. \"estimate_mode\"      (string, optional, default=UNSET) The fee estimate mode, must be one of:\n"
+            "       \"UNSET\"\n"
+            "       \"ECONOMICAL\"\n"
+            "       \"CONSERVATIVE\"\n"
+            "2. \"comment\"            (string, optional) A comment used to store what the transaction is for. \n"
+            "                             This is not part of the transaction, just kept in your wallet.\n"
+            "3. \"comment_to\"         (string, optional) A comment to store the name of the person or organization \n"
+            "                             to which you're sending the transaction. This is not part of the \n"
+            "                             transaction, just kept in your wallet.\n"
+            "4. \"senderaddress\"      (string, optional) The quantum address that will be used to send money from.\n"
+            "\nResult:\n"
+        	"txid\n"
+            "\nExamples:\n"
+			+ HelpExampleCli("createticketpurchase", "")
+			+ HelpExampleCli("createticketpurchase", "\"ECONOMICAL\" \"donation\" \"seans outpost\" \"QM72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\"")
+			+ HelpExampleRpc("createticketpurchase", "")
+        );
+    ObserveSafeMode();
+
+    // Make sure the results are valid at least up to the most recent block
+    // the user could have gotten from another RPC command prior to now
+    pwallet->BlockUntilSyncedToCurrentChain();
+
+    LOCK2(cs_main, pwallet->cs_wallet);
+
+    CCoinControl coin_control;
+
+    if (!request.params[0].isNull()) {
+        std::string estimate_mode = request.params[0].get_str();
+        if (!estimate_mode.empty() && !FeeModeFromString(estimate_mode, coin_control.m_fee_mode)) {
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid estimate_mode parameter");
+        }
+    }
+
+    // Wallet comments
+    CWalletTx wtx;
+    if (!request.params[1].isNull() && !request.params[2].get_str().empty())
+        wtx.mapValue["comment"] = request.params[2].get_str();
+    if (!request.params[2].isNull() && !request.params[3].get_str().empty())
+        wtx.mapValue["to"]      = request.params[3].get_str();
+
+    bool fHasSender=false;
+    CTxDestination senderAddress;
+    if (!request.params[3].isNull()){
+    senderAddress = DecodeDestination(request.params[3].get_str());
+        if (!IsValidDestination(senderAddress))
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Qtum address to send from");
+        else
+            fHasSender=true;
+    }
+
+    if(fHasSender){
+		//find a UTXO with sender address
+
+		UniValue results(UniValue::VARR);
+		std::vector<COutput> vecOutputs;
+
+		coin_control.fAllowOtherInputs=true;
+
+		assert(pwallet != NULL);
+		pwallet->AvailableCoins(vecOutputs, false, NULL, true);
+
+		for(const COutput& out : vecOutputs) {
+			CTxDestination destAdress;
+			const CScript& scriptPubKey = out.tx->tx->vout[out.i].scriptPubKey;
+			bool fValidAddress = ExtractDestination(scriptPubKey, destAdress);
+
+			if (!fValidAddress || senderAddress != destAdress)
+			 continue;
+
+			coin_control.Select(COutPoint(out.tx->GetHash(),out.i));
+
+			break;
+
+		}
+
+		if(!coin_control.HasSelected()){
+			throw JSONRPCError(RPC_TYPE_ERROR, "Sender address does not have any unspent outputs");
+		}
+    }
+
+    EnsureWalletIsUnlocked(pwallet);
+
+    BuyTicket(pwallet, wtx, coin_control, fHasSender);
 
     return wtx.GetHash().GetHex();
 }
@@ -4266,6 +4412,7 @@ static const CRPCCommand commands[] =
     { "wallet",             "sendmany",                 &sendmany,                 {"fromaccount","amounts","minconf","comment","subtractfeefrom","replaceable","conf_target","estimate_mode"} },
     { "wallet",             "sendmanywithdupes",        &sendmanywithdupes,        {"fromaccount","amounts","minconf","comment","subtractfeefrom"} },
     { "wallet",             "sendtoaddress",            &sendtoaddress,            {"address","amount","comment","comment_to","subtractfeefromamount","replaceable","conf_target","estimate_mode","senderAddress","changeToSender"} },
+	{ "wallet",				"createticketpurchase",		&createticketpurchase,	   {"estimate_mode", "comment","comment_to", "senderAddress"} },
     { "wallet",             "setaccount",               &setaccount,               {"address","account"} },
     { "wallet",             "settxfee",                 &settxfee,                 {"amount"} },
     { "wallet",             "signmessage",              &signmessage,              {"address","message"} },

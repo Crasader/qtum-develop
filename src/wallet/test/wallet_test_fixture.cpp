@@ -31,3 +31,27 @@ WalletTestingSetup::~WalletTestingSetup()
     bitdb.Flush(true);
     bitdb.Reset();
 }
+
+WalletTestingSetupTemp::WalletTestingSetupTemp(const std::string& chainName):
+    TestingSetupTemp(chainName)
+{
+    bitdb.MakeMock();
+
+    bool fFirstRun;
+    g_address_type = OUTPUT_TYPE_DEFAULT;
+    g_change_type = OUTPUT_TYPE_DEFAULT;
+    std::unique_ptr<CWalletDBWrapper> dbw(new CWalletDBWrapper(&bitdb, "wallet_test.dat"));
+    pwalletMain = MakeUnique<CWallet>(std::move(dbw));
+    pwalletMain->LoadWallet(fFirstRun);
+    RegisterValidationInterface(pwalletMain.get());
+
+    RegisterWalletRPCCommands(tableRPC);
+}
+
+WalletTestingSetupTemp::~WalletTestingSetupTemp()
+{
+    UnregisterValidationInterface(pwalletMain.get());
+
+    bitdb.Flush(true);
+    bitdb.Reset();
+}

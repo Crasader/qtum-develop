@@ -7,7 +7,6 @@
 
 #include <pos.h>
 #include <txdb.h>
-#include <validation.h>
 #include <arith_uint256.h>
 #include <hash.h>
 #include <timedata.h>

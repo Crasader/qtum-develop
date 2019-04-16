@@ -139,3 +139,4 @@ test/functional/.idea/*
 
 #eclipse
 .settings/*
+.pydevproject

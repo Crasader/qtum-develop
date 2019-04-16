@@ -133,8 +133,28 @@ public:
         nDefaultPort = 3888;
         nPruneAfterHeight = 100000;
 
-        genesis = CreateGenesisBlock(1504695029, 8026361, 0x1f00ffff, 1, 50 * COIN);
-        consensus.hashGenesisBlock = genesis.GetHash();
+//        uint32_t nonce = 0;
+//        bool fNegative;
+//        bool fOverflow;
+//        arith_uint256 bnTarget;
+//        bnTarget.SetCompact(0x1f00ffff, &fNegative, &fOverflow);
+//        do{
+//            if(TestStxDebug){
+//            	genesis = CreateGenesisBlock(1504695029, nonce, 0x1f00ffff, 1, 50 * COIN);
+//            } else {
+//            	genesis = CreateGenesisBlock(1504695029, 8026361, 0x1f00ffff, 1, 50 * COIN);
+//            }
+//			consensus.hashGenesisBlock = genesis.GetHash();
+//			nonce++;
+//		}while(UintToArith256(consensus.hashGenesisBlock) > bnTarget);
+
+        if(TestStxDebug){
+        	genesis = CreateGenesisBlock(1504695029, 30048, 0x1f00ffff, 1, 50 * COIN);
+        } else {
+        	genesis = CreateGenesisBlock(1504695029, 8026361, 0x1f00ffff, 1, 50 * COIN);
+        }
+		consensus.hashGenesisBlock = genesis.GetHash();
+
 //        assert(consensus.hashGenesisBlock == uint256S("0x000075aef83cf2853580f8ae8ce6f8c3096cfa21d98334d6e3f95e5582ed986c"));
 //        assert(genesis.hashMerkleRoot == uint256S("0xed34050eb5909ee535fcb07af292ea55f3d2f291187617b44d3282231405b96d"));
 
@@ -384,13 +404,15 @@ public:
         nDefaultPort = 23888;
         nPruneAfterHeight = 1000;
 
-        if(TestStxDebug){
-        	genesis = CreateGenesisBlock(1504695029, 22, 0x207fffff, 1, 50 * COIN);
-        } else {
-        	genesis = CreateGenesisBlock(1504695029, 17, 0x207fffff, 1, 50 * COIN);
-        }
+		if(TestStxDebug){
+			genesis = CreateGenesisBlock(1504695029, 22, 0x207fffff, 1, 50 * COIN);
+		} else {
+			genesis = CreateGenesisBlock(1504695029, 17, 0x207fffff, 1, 50 * COIN);
+		}
 
-        consensus.hashGenesisBlock = genesis.GetHash();
+		consensus.hashGenesisBlock = genesis.GetHash();
+
+
 //        assert(consensus.hashGenesisBlock == uint256S("0x665ed5b402ac0b44efc37d8926332994363e8a7278b7ee9a58fb972efadae943"));
 //        assert(genesis.hashMerkleRoot == uint256S("0xed34050eb5909ee535fcb07af292ea55f3d2f291187617b44d3282231405b96d"));
 
